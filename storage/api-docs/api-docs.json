@@ -1,0 +1,31 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "CHEZCLARENCE API",
+        "description": "API REST pour la plateforme de gestion du restaurant",
+        "contact": {
+            "name": "HI-TECH Vision SARL",
+            "email": "contact@hi-techvisioncm.com"
+        },
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/api": {
+            "servers": [
+                {
+                    "url": "http://127.0.0.1:8000",
+                    "description": "Serveur de développement local"
+                }
+            ]
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    }
+}

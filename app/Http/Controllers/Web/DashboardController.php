@@ -1,0 +1,472 @@
+<?php
+
+namespace App\Http\Controllers\Web;
+
+use App\Http\Controllers\Controller;
+use App\Models\Commande;
+use App\Models\Menu;
+use App\Models\User;
+use App\Models\TableResto;
+use App\Models\Categorie;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+class DashboardController extends Controller
+{
+    public function index()
+    {
+        $user = Auth::user();
+
+        // Rediriger vers le bon dashboard selon le rôle
+        return match($user->role) {
+            'Administrateur' => $this->dashboardAdmin(),
+            'Caissier'       => $this->dashboardCaissier(),
+            'Serveur'        => $this->dashboardServeur(),
+            'Cuisinier'      => $this->dashboardCuisinier(),
+            'Livreur'        => $this->dashboardLivreur(),
+            default          => $this->dashboardDefault(),
+        };
+    }
+
+    // =========================================================
+    // DASHBOARD ADMINISTRATEUR
+    // =========================================================
+
+    private function dashboardAdmin()
+    {
+        $today     = Carbon::today();
+        $debutMois = Carbon::now()->startOfMonth();
+        $hier      = Carbon::yesterday();
+
+        // ── Statistiques du jour ──────────────────────────────
+
+        $commandesDuJour = Commande::whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->count();
+
+        $commandesHier = Commande::whereDate('datecommande', $hier)
+            ->whereNull('void')
+            ->count();
+
+        $caJour = Commande::whereDate('datecommande', $today)
+            ->whereIn('statut_courant', ['Servie', 'Livrée'])
+            ->whereNull('void')
+            ->sum('montant') ?? 0;
+
+        $caHier = Commande::whereDate('datecommande', $hier)
+            ->whereIn('statut_courant', ['Servie', 'Livrée'])
+            ->whereNull('void')
+            ->sum('montant') ?? 0;
+
+        $caMois = Commande::whereBetween('datecommande', [$debutMois, Carbon::now()])
+            ->whereIn('statut_courant', ['Servie', 'Livrée'])
+            ->whereNull('void')
+            ->sum('montant') ?? 0;
+
+        // ── Commandes actives ─────────────────────────────────
+
+        $commandesEnAttente = Commande::where('statut_courant', 'En attente')
+            ->whereNull('void')
+            ->count();
+
+        $commandesEnPreparation = Commande::where('statut_courant', 'En préparation')
+            ->whereNull('void')
+            ->count();
+
+        $livraisonsEnCours = Commande::where('typecommande', 'Livraison')
+            ->whereIn('statut_courant', ['En attente', 'En préparation', 'Expédiée'])
+            ->whereNull('void')
+            ->count();
+
+        // ── Tables ────────────────────────────────────────────
+
+        $totalTables = TableResto::whereNull('void')->count();
+
+        $tablesOccupees = TableResto::whereNull('void')
+            ->whereHas('commandesActives')
+            ->count();
+
+        $tablesLibres = $totalTables - $tablesOccupees;
+
+        // ── Utilisateurs ──────────────────────────────────────
+
+        $totalUsers    = User::whereNull('void')->where('statut', 'Activé')->count();
+        $usersConnectes = User::where('etat', 'Connecté')->whereNull('void')->count();
+
+        // ── Graphique : ventes des 7 derniers jours ───────────
+
+        $ventesSet = Commande::whereBetween('datecommande', [
+                Carbon::now()->subDays(6)->startOfDay(),
+                Carbon::now()->endOfDay()
+            ])
+            ->whereIn('statut_courant', ['Servie', 'Livrée'])
+            ->whereNull('void')
+            ->select(
+                DB::raw('DATE(datecommande) as date'),
+                DB::raw('SUM(montant) as total'),
+                DB::raw('COUNT(*) as nb')
+            )
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->keyBy('date');
+
+        // Remplir les jours sans ventes avec 0
+        $labelsVentes = [];
+        $dataVentes   = [];
+        $dataNb       = [];
+
+        for ($i = 6; $i >= 0; $i--) {
+            $date = Carbon::now()->subDays($i)->format('Y-m-d');
+            $labelsVentes[] = Carbon::now()->subDays($i)->translatedFormat('D d/m');
+            $dataVentes[]   = isset($ventesSet[$date])
+                ? (float) $ventesSet[$date]->total
+                : 0;
+            $dataNb[]       = isset($ventesSet[$date])
+                ? (int) $ventesSet[$date]->nb
+                : 0;
+        }
+
+        // ── Graphique : répartition par type de commande ──────
+
+        $repartition = Commande::whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->select('typecommande', DB::raw('COUNT(*) as total'))
+            ->groupBy('typecommande')
+            ->pluck('total', 'typecommande')
+            ->toArray();
+
+        $dataRepartition = [
+            'Standard'  => $repartition['Standard']  ?? 0,
+            'Livraison' => $repartition['Livraison'] ?? 0,
+        ];
+
+        // ── Top 5 plats les plus vendus (mois en cours) ───────
+
+        $topPlats = DB::table('lignes')
+            ->join('menus', 'lignes.idmenu', '=', 'menus.idmenu')
+            ->join('commandes', 'lignes.idcommande', '=', 'commandes.idcommande')
+            ->whereBetween('commandes.datecommande', [
+                $debutMois->format('Y-m-d'),
+                Carbon::now()->format('Y-m-d')
+            ])
+            ->whereNull('commandes.void')
+            ->select(
+                'menus.intitule',
+                DB::raw('SUM(lignes.quantite) as total_vendu'),
+                DB::raw('SUM(lignes.prix) as ca_total')
+            )
+            ->groupBy('menus.idmenu', 'menus.intitule')
+            ->orderByDesc('total_vendu')
+            ->take(5)
+            ->get();
+
+        // ── Dernières commandes ───────────────────────────────
+
+        $dernieresCommandes = Commande::with(['client', 'table', 'serveur'])
+            ->whereNull('void')
+            ->orderByDesc('created_at')
+            ->take(8)
+            ->get();
+
+        // ── Évolution vs hier ─────────────────────────────────
+
+        $evolutionCommandes = $commandesHier > 0
+            ? round((($commandesDuJour - $commandesHier) / $commandesHier) * 100, 1)
+            : ($commandesDuJour > 0 ? 100 : 0);
+
+        $evolutionCA = $caHier > 0
+            ? round((($caJour - $caHier) / $caHier) * 100, 1)
+            : ($caJour > 0 ? 100 : 0);
+
+        return view('dashboard.index', compact(
+            'commandesDuJour',
+            'caJour',
+            'caMois',
+            'commandesEnAttente',
+            'commandesEnPreparation',
+            'livraisonsEnCours',
+            'totalTables',
+            'tablesOccupees',
+            'tablesLibres',
+            'totalUsers',
+            'usersConnectes',
+            'labelsVentes',
+            'dataVentes',
+            'dataNb',
+            'dataRepartition',
+            'topPlats',
+            'dernieresCommandes',
+            'evolutionCommandes',
+            'evolutionCA',
+            'today'
+        ));
+    }
+
+    // =========================================================
+    // DASHBOARD CAISSIER
+    // =========================================================
+
+    private function dashboardCaissier()
+    {
+        $today = Carbon::today();
+
+        // Commandes du jour encaissées
+        $commandesEncaissees = Commande::whereDate('datecommande', $today)
+            ->whereIn('statut_courant', ['Servie', 'Livrée'])
+            ->whereNull('void')
+            ->with(['lignes.menu', 'table'])
+            ->orderByDesc('updated_at')
+            ->get();
+
+        $totalCaisse   = $commandesEncaissees->sum('montant');
+        $nbEncaissees  = $commandesEncaissees->count();
+
+        // Commandes en attente d'encaissement
+        $aEncaisser = Commande::whereDate('datecommande', $today)
+            ->where('statut_courant', 'Servie')
+            ->whereNull('void')
+            ->with(['table', 'lignes'])
+            ->orderBy('created_at')
+            ->get();
+
+        // Commandes actives du jour
+        $commandesActives = Commande::whereDate('datecommande', $today)
+            ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
+            ->whereNull('void')
+            ->with(['table', 'lignes'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        // Panier moyen du jour
+        $panierMoyen = $nbEncaissees > 0
+            ? round($totalCaisse / $nbEncaissees, 0)
+            : 0;
+
+        return view('dashboard.index', compact(
+            'commandesEncaissees',
+            'totalCaisse',
+            'nbEncaissees',
+            'aEncaisser',
+            'commandesActives',
+            'panierMoyen',
+            'today'
+        ));
+    }
+
+    // =========================================================
+    // DASHBOARD SERVEUR
+    // =========================================================
+
+    private function dashboardServeur()
+    {
+        $today   = Carbon::today();
+        $serveur = Auth::user();
+
+        // Tables avec leur statut en temps réel
+        $tables = TableResto::whereNull('void')
+            ->orderBy('intitule')
+            ->get()
+            ->map(function ($table) {
+                $commandeActive = Commande::where('idtable', $table->idtable)
+                    ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
+                    ->whereNull('void')
+                    ->with('lignes')
+                    ->latest()
+                    ->first();
+
+                $table->occupee         = (bool) $commandeActive;
+                $table->commande_active = $commandeActive;
+                $table->montant_en_cours = $commandeActive
+                    ? $commandeActive->montant
+                    : 0;
+
+                return $table;
+            });
+
+        // Commandes du serveur connecté aujourd'hui
+        $mesCommandes = Commande::where('iduser', $serveur->iduser)
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['table', 'lignes.menu'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        // Commandes en attente de service (toutes tables)
+        $commandesEnAttente = Commande::where('statut_courant', 'En attente')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['table', 'lignes.menu'])
+            ->orderBy('created_at')
+            ->get();
+
+        $commandesPrêtes = Commande::where('statut_courant', 'En préparation')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['table', 'lignes.menu'])
+            ->orderBy('created_at')
+            ->get();
+
+        return view('dashboard.index', compact(
+            'tables',
+            'mesCommandes',
+            'commandesEnAttente',
+            'commandesPrêtes',
+            'today'
+        ));
+    }
+
+    // =========================================================
+    // DASHBOARD CUISINIER
+    // =========================================================
+
+    private function dashboardCuisinier()
+    {
+        $today = Carbon::today();
+
+        // Bons de préparation en attente (priorité : heure de commande)
+        $commandesEnAttente = Commande::where('statut_courant', 'En attente')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['lignes.menu', 'table'])
+            ->orderBy('heurecommande')
+            ->get();
+
+        // Commandes en cours de préparation
+        $enPreparation = Commande::where('statut_courant', 'En préparation')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['lignes.menu', 'table'])
+            ->orderBy('heurecommande')
+            ->get();
+
+        // Commandes terminées aujourd'hui par la cuisine
+        $terminees = Commande::whereIn('statut_courant', ['Servie', 'Livrée', 'Expédiée'])
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->count();
+
+        // Plats les plus commandés aujourd'hui
+        $platsTop = DB::table('lignes')
+            ->join('menus', 'lignes.idmenu', '=', 'menus.idmenu')
+            ->join('commandes', 'lignes.idcommande', '=', 'commandes.idcommande')
+            ->whereDate('commandes.datecommande', $today)
+            ->whereNull('commandes.void')
+            ->select(
+                'menus.intitule',
+                DB::raw('SUM(lignes.quantite) as total')
+            )
+            ->groupBy('menus.idmenu', 'menus.intitule')
+            ->orderByDesc('total')
+            ->take(5)
+            ->get();
+
+        return view('dashboard.index', compact(
+            'commandesEnAttente',
+            'enPreparation',
+            'terminees',
+            'platsTop',
+            'today'
+        ));
+    }
+
+    // =========================================================
+    // DASHBOARD LIVREUR
+    // =========================================================
+
+    private function dashboardLivreur()
+    {
+        $today   = Carbon::today();
+        $livreur = Auth::user();
+
+        // Livraisons en attente (non encore assignées)
+        $livraisonsAttente = Commande::where('typecommande', 'Livraison')
+            ->where('statut_courant', 'En attente')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['client', 'lignes.menu'])
+            ->orderBy('heurecommande')
+            ->get();
+
+        // Livraisons en préparation
+        $livraisonsPrepa = Commande::where('typecommande', 'Livraison')
+            ->where('statut_courant', 'En préparation')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['client', 'lignes.menu'])
+            ->orderBy('heurecommande')
+            ->get();
+
+        // Livraisons expédiées (en route)
+        $livraisonsEnRoute = Commande::where('typecommande', 'Livraison')
+            ->where('statut_courant', 'Expédiée')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['client', 'lignes.menu'])
+            ->orderByDesc('updated_at')
+            ->get();
+
+        // Livraisons terminées aujourd'hui
+        $livraisonsTerminees = Commande::where('typecommande', 'Livraison')
+            ->where('statut_courant', 'Livrée')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->count();
+
+        return view('dashboard.index', compact(
+            'livraisonsAttente',
+            'livraisonsPrepa',
+            'livraisonsEnRoute',
+            'livraisonsTerminees',
+            'today'
+        ));
+    }
+
+    // =========================================================
+    // DASHBOARD PAR DEFAUT (Client ou rôle inconnu)
+    // =========================================================
+
+    private function dashboardDefault()
+    {
+        return view('dashboard.index', [
+            'user' => Auth::user(),
+        ]);
+    }
+
+    // =========================================================
+    // DONNEES EN TEMPS REEL (appelé via AJAX toutes les 30s)
+    // =========================================================
+
+    public function refresh()
+    {
+        $today = Carbon::today();
+
+        $data = [
+            'commandes_en_attente'    => Commande::where('statut_courant', 'En attente')
+                ->whereNull('void')->count(),
+
+            'commandes_en_preparation' => Commande::where('statut_courant', 'En préparation')
+                ->whereNull('void')->count(),
+
+            'livraisons_en_cours'     => Commande::where('typecommande', 'Livraison')
+                ->whereIn('statut_courant', ['En attente', 'En préparation', 'Expédiée'])
+                ->whereNull('void')->count(),
+
+            'ca_jour'                 => Commande::whereDate('datecommande', $today)
+                ->whereIn('statut_courant', ['Servie', 'Livrée'])
+                ->whereNull('void')->sum('montant'),
+
+            'tables_occupees'         => TableResto::whereNull('void')
+                ->whereHas('commandesActives')->count(),
+
+            'timestamp'               => now()->format('H:i:s'),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data'    => $data,
+        ]);
+    }
+}
