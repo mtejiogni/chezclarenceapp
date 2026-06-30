@@ -329,6 +329,18 @@
                     'Annulée'        => 'fa-circle-xmark',
                     default          => 'fa-circle'
                 };
+
+                $typeIcone = match($commande->typecommande) {
+                    'Livraison'  => 'fa-motorcycle',
+                    'A emporter' => 'fa-bag-shopping',
+                    default      => 'fa-chair',
+                };
+                $typeCouleur = match($commande->typecommande) {
+                    'Livraison'  => '#f97316',
+                    'A emporter' => '#22c55e',
+                    default      => '#60a5fa',
+                };
+                $typeLabel = $commande->typecommande === 'A emporter' ? 'À emporter' : $commande->typecommande;
             @endphp
             <span class="badge b-{{ $slugStatut }}">
                 <i class="fa-solid {{ $iconeStatut }}" style="font-size:11px;"></i>
@@ -338,9 +350,9 @@
             {{-- Type de commande --}}
             <span style="font-size:11px;padding:3px 10px;border-radius:6px;
                          background:#1a1a1a;color:#555;">
-                <i class="fa-solid {{ $commande->typecommande === 'Livraison' ? 'fa-motorcycle' : 'fa-chair' }}"
-                   style="margin-right:4px;color:{{ $commande->typecommande === 'Livraison' ? '#f97316' : '#60a5fa' }};"></i>
-                {{ $commande->typecommande }}
+                <i class="fa-solid {{ $typeIcone }}"
+                   style="margin-right:4px;color:{{ $typeCouleur }};"></i>
+                {{ $typeLabel }}
             </span>
         </div>
 
@@ -412,6 +424,8 @@
 ══════════════════════════════════════════════════════════ --}}
 @php
     // Définir les étapes selon le type de commande
+    // [NOTE] "A emporter" suit le même parcours que "Standard"
+    //        (pas d'étape Expédiée/Livrée, le client repart directement)
     $etapesStandard  = ['En attente', 'En préparation', 'Servie'];
     $etapesLivraison = ['En attente', 'En préparation', 'Expédiée', 'Livrée'];
     $etapes = $commande->typecommande === 'Livraison' ? $etapesLivraison : $etapesStandard;
@@ -493,13 +507,21 @@
                     </div>
                 </div>
 
-                {{-- Table ou Livraison --}}
+                {{-- Table, À emporter, ou Livraison --}}
                 @if($commande->table)
                 <div class="info-cell">
                     <div class="info-cell-label">Table</div>
                     <div class="info-cell-value">
                         <i class="fa-solid fa-chair" style="color:#60a5fa;margin-right:5px;font-size:11px;"></i>
                         {{ $commande->table->intitule }}
+                    </div>
+                </div>
+                @elseif($commande->typecommande === 'A emporter')
+                <div class="info-cell">
+                    <div class="info-cell-label">Type</div>
+                    <div class="info-cell-value">
+                        <i class="fa-solid fa-bag-shopping" style="color:#22c55e;margin-right:5px;font-size:11px;"></i>
+                        À emporter
                     </div>
                 </div>
                 @else
@@ -887,6 +909,11 @@
                 <div style="display:flex;justify-content:space-between;font-size:12px;">
                     <span style="color:#555;">Table</span>
                     <span style="color:#60a5fa;">{{ $commande->table->intitule }}</span>
+                </div>
+                @elseif($commande->typecommande === 'A emporter')
+                <div style="display:flex;justify-content:space-between;font-size:12px;">
+                    <span style="color:#555;">Type</span>
+                    <span style="color:#22c55e;">À emporter</span>
                 </div>
                 @endif
 

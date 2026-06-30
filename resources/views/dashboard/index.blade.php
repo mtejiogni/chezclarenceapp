@@ -99,12 +99,12 @@
         @if(in_array(auth()->user()->role, ['Administrateur','Caissier','Serveur']))
         <button class="dash-tab" onclick="showPane('commandes',this)">
             <i class="fa-solid fa-receipt"></i>Commandes
-            @if(($commandesEnAttente??0) > 0)
-            <span style="margin-left:auto;background:rgba(234,88,12,.2);color:#f97316;
-                         font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;">
+            <span id="badge-commandes"
+                  style="margin-left:auto;background:rgba(234,88,12,.2);color:#f97316;
+                         font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;
+                         display:{{ ($commandesEnAttente??0) > 0 ? 'inline-block' : 'none' }};">
                 {{ $commandesEnAttente ?? 0 }}
             </span>
-            @endif
         </button>
         @endif
 
@@ -121,24 +121,24 @@
               $nbPrep = is_countable($enPreparation??[]) ? count($enPreparation??[]) : 0;
               $nbAtt  = is_integer($commandesEnAttente??null) ? ($commandesEnAttente??0) : (is_countable($commandesEnAttente??[]) ? count($commandesEnAttente??[]) : 0);
             @endphp
-            @if($nbPrep + $nbAtt > 0)
-            <span style="margin-left:auto;background:rgba(59,130,246,.2);color:#60a5fa;
-                         font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;">
+            <span id="badge-cuisine"
+                  style="margin-left:auto;background:rgba(59,130,246,.2);color:#60a5fa;
+                         font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;
+                         display:{{ ($nbPrep + $nbAtt) > 0 ? 'inline-block' : 'none' }};">
                 {{ $nbPrep + $nbAtt }}
             </span>
-            @endif
         </button>
         @endif
 
         @if(in_array(auth()->user()->role, ['Administrateur','Livreur']))
         <button class="dash-tab" onclick="showPane('livraisons',this)">
             <i class="fa-solid fa-motorcycle"></i>Livraisons
-            @if(($livraisonsEnCours??0) > 0)
-            <span style="margin-left:auto;background:rgba(234,88,12,.2);color:#f97316;
-                         font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;">
+            <span id="badge-livraisons"
+                  style="margin-left:auto;background:rgba(234,88,12,.2);color:#f97316;
+                         font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;
+                         display:{{ ($livraisonsEnCours??0) > 0 ? 'inline-block' : 'none' }};">
                 {{ $livraisonsEnCours ?? 0 }}
             </span>
-            @endif
         </button>
         @endif
 
@@ -272,7 +272,7 @@
                             <i class="fa-solid fa-motorcycle" style="color:#f97316;font-size:14px;"></i>
                         </div>
                     </div>
-                    <div style="font-size:22px;font-weight:700;color:#fff;">{{ $livraisonsEnCours ?? 0 }}</div>
+                    <div style="font-size:22px;font-weight:700;color:#fff;" id="kpi-livraisons">{{ $livraisonsEnCours ?? 0 }}</div>
                     <div style="font-size:11px;color:#444;margin-top:2px;">Livraisons en cours</div>
                 </div>
                 @endif
@@ -343,7 +343,14 @@
                     <div class="cmd-row">
                         <div style="width:36px;height:36px;border-radius:10px;flex-shrink:0;
                                     background:#1a1a1a;display:flex;align-items:center;justify-content:center;">
-                            <i class="fa-solid {{ $cmd->typecommande==='Livraison'?'fa-motorcycle':'fa-chair' }}"
+                            @php
+                                $iconRecent = match($cmd->typecommande) {
+                                    'Livraison'  => 'fa-motorcycle',
+                                    'A emporter' => 'fa-bag-shopping',
+                                    default      => 'fa-chair',
+                                };
+                            @endphp
+                            <i class="fa-solid {{ $iconRecent }}"
                                style="color:#333;font-size:13px;"></i>
                         </div>
                         <div style="flex:1;min-width:0;">
@@ -422,12 +429,23 @@
                         'Expédiée'=>'expediee','Servie'=>'servie',
                         'Livrée'=>'livree','Annulée'=>'annulee',default=>'attente'
                     };
+                    
+                    $iconCmd = match($cmd->typecommande) {
+                        'Livraison'  => 'fa-motorcycle',
+                        'A emporter' => 'fa-bag-shopping',
+                        default      => 'fa-chair',
+                    };
+                    $couleurCmd = match($cmd->typecommande) {
+                        'Livraison'  => '#f97316',
+                        'A emporter' => '#22c55e',
+                        default      => '#60a5fa',
+                    };
                 @endphp
                 <div class="cmd-row cmd-item" data-s="{{ $cmd->statut_courant }}">
                     <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
                                 background:#1a1a1a;display:flex;align-items:center;justify-content:center;">
-                        <i class="fa-solid {{ $cmd->typecommande==='Livraison'?'fa-motorcycle':'fa-chair' }}"
-                           style="color:{{ $cmd->typecommande==='Livraison'?'#f97316':'#60a5fa' }};font-size:14px;"></i>
+                        <i class="fa-solid {{ $iconCmd }}"
+                           style="color:{{ $couleurCmd }};font-size:14px;"></i>
                     </div>
                     <div style="flex:1;min-width:0;">
                         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -437,7 +455,7 @@
                                 {{ $cmd->table->intitule }}
                             </span>
                             @endif
-                            <span style="font-size:10px;color:#333;">{{ $cmd->typecommande }}</span>
+                            <span style="font-size:10px;color:#333;">{{ $cmd->typecommande === 'A emporter' ? 'À emporter' : $cmd->typecommande }}</span>
                         </div>
                         <div style="font-size:11px;color:#444;margin-top:2px;">
                             <i class="fa-regular fa-clock" style="margin-right:3px;"></i>{{ $cmd->heurecommande }}
@@ -491,17 +509,17 @@
             {{-- KPIs caisse --}}
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
                 <div class="kpi" style="text-align:center;">
-                    <div style="font-size:26px;font-weight:700;color:#22c55e;margin-bottom:4px;">
+                    <div style="font-size:26px;font-weight:700;color:#22c55e;margin-bottom:4px;" id="kpi-caisse-total">
                         {{ number_format($totalCaisse??0,0,',',' ') }}
                     </div>
                     <div style="font-size:11px;color:#444;">Total encaissé (FCFA)</div>
                 </div>
                 <div class="kpi" style="text-align:center;">
-                    <div style="font-size:26px;font-weight:700;color:#fff;margin-bottom:4px;">{{ $nbEncaissees ?? 0 }}</div>
+                    <div style="font-size:26px;font-weight:700;color:#fff;margin-bottom:4px;" id="kpi-caisse-nb">{{ $nbEncaissees ?? 0 }}</div>
                     <div style="font-size:11px;color:#444;">Commandes encaissées</div>
                 </div>
                 <div class="kpi" style="text-align:center;">
-                    <div style="font-size:26px;font-weight:700;color:#f97316;margin-bottom:4px;">
+                    <div style="font-size:26px;font-weight:700;color:#f97316;margin-bottom:4px;" id="kpi-caisse-panier">
                         {{ number_format($panierMoyen??0,0,',',' ') }}
                     </div>
                     <div style="font-size:11px;color:#444;">Panier moyen (FCFA)</div>
@@ -543,7 +561,7 @@
             <div class="kpi">
                 <h3 style="font-size:13px;font-weight:600;color:#e5e5e5;margin:0 0 14px;">
                     <i class="fa-solid fa-chart-pie" style="color:#ea580c;margin-right:6px;"></i>
-                    Répartition Standard / Livraison
+                    Répartition Standard / À emporter / Livraison
                 </h3>
                 <div class="chart-wrap" style="height:180px;"><canvas id="c-caisse"></canvas></div>
             </div>
@@ -569,17 +587,26 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
 
                 {{-- En attente --}}
+                @php
+                    // [AJOUT] $cuisineEnAttente est la collection dédiée fournie
+                    // à l'Administrateur. $commandesEnAttente reste utilisé tel
+                    // quel pour le rôle Cuisinier (déjà une collection dans ce cas).
+                    $listeCuisineAttente = $cuisineEnAttente
+                        ?? (is_iterable($commandesEnAttente ?? []) && !is_integer($commandesEnAttente ?? null)
+                            ? ($commandesEnAttente ?? [])
+                            : []);
+                @endphp
                 <div>
                     <div style="font-size:10px;font-weight:600;letter-spacing:2px;color:#eab308;
                                 text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
                         <i class="fa-solid fa-clock"></i>En attente
                         <span style="background:rgba(234,179,8,.15);color:#eab308;font-size:10px;
                                      padding:1px 6px;border-radius:6px;">
-                            {{ is_countable($commandesEnAttente??[]) ? count($commandesEnAttente??[]) : ($commandesEnAttente??0) }}
+                            {{ is_countable($listeCuisineAttente) ? count($listeCuisineAttente) : 0 }}
                         </span>
                     </div>
                     <div style="display:flex;flex-direction:column;gap:8px;">
-                        @forelse(is_iterable($commandesEnAttente??[]) && !is_integer($commandesEnAttente??null) ? ($commandesEnAttente??[]) : [] as $cmd)
+                        @forelse($listeCuisineAttente as $cmd)
                         @if(is_object($cmd))
                         <div class="bon">
                             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
@@ -1008,9 +1035,36 @@ function refreshDash() {
     .then(r => r.json())
     .then(({ data: d }) => {
         const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        const setBadge = (id, v) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = v;
+            el.style.display = v > 0 ? 'inline-block' : 'none';
+        };
+
+        // KPIs de l'onglet Accueil
         set('kpi-att', d.commandes_en_attente);
-        set('kpi-cmd', d.nb_commandes_jour ?? document.getElementById('kpi-cmd')?.textContent);
+        set('kpi-cmd', d.nb_commandes_jour);
         set('kpi-ca',  new Intl.NumberFormat('fr-FR').format(d.ca_jour));
+        set('kpi-livraisons', d.livraisons_en_cours);
+
+        // [AJOUT] KPI Tables occupées (id existant, jamais branché jusqu'ici)
+        const kpiTables = document.getElementById('kpi-tables');
+        if (kpiTables && kpiTables.textContent.includes('/')) {
+            const total = kpiTables.textContent.split('/')[1];
+            kpiTables.textContent = d.tables_occupees + '/' + total;
+        }
+
+        // [AJOUT] KPIs de l'onglet Caisse
+        set('kpi-caisse-total',  new Intl.NumberFormat('fr-FR').format(d.total_caisse));
+        set('kpi-caisse-nb',     d.nb_encaissees);
+        const panierMoyen = d.nb_encaissees > 0 ? Math.round(d.total_caisse / d.nb_encaissees) : 0;
+        set('kpi-caisse-panier', new Intl.NumberFormat('fr-FR').format(panierMoyen));
+
+        // [AJOUT] Badges des onglets sidebar
+        setBadge('badge-commandes',  d.commandes_en_attente);
+        setBadge('badge-cuisine',    (d.commandes_en_attente ?? 0) + (d.commandes_en_preparation ?? 0));
+        setBadge('badge-livraisons', d.livraisons_en_cours);
 
         Swal.fire({
             toast: true, position: 'bottom-end',
@@ -1079,14 +1133,14 @@ setInterval(() => refreshDash(), 30000);
 (function() {
     const el = document.getElementById('c-caisse');
     if (!el) return;
-    const d = {!! json_encode($dataRepartition ?? ['Standard'=>0,'Livraison'=>0]) !!};
+    const d = {!! json_encode($dataRepartition ?? ['Standard'=>0,'A emporter'=>0,'Livraison'=>0]) !!};
     new Chart(el, {
         type: 'doughnut',
         data: {
             labels: Object.keys(d),
             datasets: [{
                 data: Object.values(d),
-                backgroundColor: ['rgba(234,88,12,0.8)','rgba(96,165,250,0.8)'],
+                backgroundColor: ['rgba(234,88,12,0.8)','rgba(34,197,94,0.8)','rgba(96,165,250,0.8)'],
                 borderColor: '#0d0d0d', borderWidth: 3, hoverOffset: 5,
             }]
         },

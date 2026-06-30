@@ -234,8 +234,9 @@
         {{-- Filtre type --}}
         <select name="type" class="sel" onchange="this.form.submit()">
             <option value="">Tous les types</option>
-            <option value="Standard"  {{ request('type')==='Standard'  ? 'selected':'' }}>Standard (Salle)</option>
-            <option value="Livraison" {{ request('type')==='Livraison' ? 'selected':'' }}>Livraison</option>
+            <option value="Standard"   {{ request('type')==='Standard'   ? 'selected':'' }}>Standard (Salle)</option>
+            <option value="A emporter" {{ request('type')==='A emporter' ? 'selected':'' }}>À emporter</option>
+            <option value="Livraison"  {{ request('type')==='Livraison'  ? 'selected':'' }}>Livraison</option>
         </select>
 
         {{-- Filtre date --}}
@@ -296,6 +297,17 @@
             default          => 'attente'
         };
         $cfg = $configStatuts[$cmd->statut_courant] ?? ['icone'=>'fa-circle','color'=>'#555'];
+
+        $typeIcone = match($cmd->typecommande) {
+            'Livraison'  => 'fa-motorcycle',
+            'A emporter' => 'fa-bag-shopping',
+            default      => 'fa-chair',
+        };
+        $typeCouleur = match($cmd->typecommande) {
+            'Livraison'  => '#f97316',
+            'A emporter' => '#22c55e',
+            default      => '#60a5fa',
+        };
     @endphp
 
     <div class="cmd-card" onclick="ouvrirDetail({{ $cmd->idcommande }})">
@@ -305,8 +317,8 @@
             <div style="width:42px;height:42px;border-radius:11px;flex-shrink:0;
                         background:#1a1a1a;border:1px solid #252525;
                         display:flex;align-items:center;justify-content:center;">
-                <i class="fa-solid {{ $cmd->typecommande==='Livraison' ? 'fa-motorcycle' : 'fa-chair' }}"
-                   style="font-size:15px;color:{{ $cmd->typecommande==='Livraison'?'#f97316':'#60a5fa' }};"></i>
+                <i class="fa-solid {{ $typeIcone }}"
+                   style="font-size:15px;color:{{ $typeCouleur }};"></i>
             </div>
 
             {{-- Infos principales --}}
@@ -321,7 +333,7 @@
                         {{ $cmd->table->intitule }}
                     </span>
                     @endif
-                    <span style="font-size:10px;color:#333;">{{ $cmd->typecommande }}</span>
+                    <span style="font-size:10px;color:#333;">{{ $cmd->typecommande === 'A emporter' ? 'À emporter' : $cmd->typecommande }}</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;margin-top:4px;flex-wrap:wrap;">
                     <span style="font-size:11px;color:#444;">
@@ -372,8 +384,9 @@
                 @php
                     $prochainStatut = match(true) {
                         $cmd->statut_courant === 'En attente'     => 'En préparation',
-                        $cmd->statut_courant === 'En préparation' && $cmd->typecommande === 'Standard'  => 'Servie',
-                        $cmd->statut_courant === 'En préparation' && $cmd->typecommande === 'Livraison' => 'Expédiée',
+                        $cmd->statut_courant === 'En préparation' && $cmd->typecommande === 'Standard'   => 'Servie',
+                        $cmd->statut_courant === 'En préparation' && $cmd->typecommande === 'A emporter'  => 'Servie',
+                        $cmd->statut_courant === 'En préparation' && $cmd->typecommande === 'Livraison'  => 'Expédiée',
                         $cmd->statut_courant === 'Expédiée'       => 'Livrée',
                         default => null
                     };
@@ -619,7 +632,7 @@ function renderPanel(cmd) {
 
     // Header
     document.getElementById('panel-ref').textContent  = cmd.reference;
-    document.getElementById('panel-type').textContent = cmd.typecommande + (cmd.table ? ' — ' + cmd.table.intitule : '');
+    document.getElementById('panel-type').textContent = (cmd.typecommande === 'A emporter' ? 'À emporter' : cmd.typecommande) + (cmd.table ? ' — ' + cmd.table.intitule : '');
     document.getElementById('panel-link').href        = `/commandes/${cmd.idcommande}`;
 
     // Lignes de commande
@@ -702,7 +715,7 @@ function renderPanel(cmd) {
             ${infoCell('fa-calendar', 'Date', cmd.datecommande ?? '—')}
             ${infoCell('fa-clock', 'Heure', cmd.heurecommande ?? '—')}
             ${infoCell('fa-credit-card', 'Paiement', cmd.mode_paiement ?? '—')}
-            ${infoCell('fa-chair', 'Table', cmd.table?.intitule ?? (cmd.typecommande === 'Livraison' ? 'Livraison' : '—'))}
+            ${infoCell('fa-chair', 'Table', cmd.table?.intitule ?? (cmd.typecommande === 'Livraison' ? 'Livraison' : (cmd.typecommande === 'A emporter' ? 'À emporter' : '—')))}
             ${cmd.client ? infoCell('fa-user', 'Client', cmd.client.prenom + ' ' + cmd.client.nom) : ''}
             ${cmd.serveur ? infoCell('fa-user-tie', 'Serveur', cmd.serveur.prenom) : ''}
         </div>
@@ -764,8 +777,9 @@ function renderPanelFooter(cmd) {
     const annulable  = !['Livrée', 'Servie', 'Annulée'].includes(cmd.statut_courant);
 
     const prochains = {
-        'Standard':  { 'En attente':'En préparation', 'En préparation':'Servie' },
-        'Livraison': { 'En attente':'En préparation', 'En préparation':'Expédiée', 'Expédiée':'Livrée' },
+        'Standard':   { 'En attente':'En préparation', 'En préparation':'Servie' },
+        'A emporter': { 'En attente':'En préparation', 'En préparation':'Servie' },
+        'Livraison':  { 'En attente':'En préparation', 'En préparation':'Expédiée', 'Expédiée':'Livrée' },
     };
     const prochain = prochains[cmd.typecommande]?.[cmd.statut_courant] ?? null;
 

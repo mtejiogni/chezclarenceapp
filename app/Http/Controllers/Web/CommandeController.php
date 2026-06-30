@@ -144,6 +144,8 @@ class CommandeController extends Controller
             $commande = Commande::create([
                 'idclient'       => $idclient,
                 'iduser'         => Auth::id(),
+                // [NOTE] idtable n'est renseigné que pour le type 'Standard'.
+                // 'A emporter' et 'Livraison' restent à null (aucune table assignée).
                 'idtable'        => $request->typecommande === 'Standard' ? $request->idtable : null,
                 'typecommande'   => $request->typecommande,
                 'reference'      => Commande::genererReference(),
@@ -314,6 +316,7 @@ class CommandeController extends Controller
             // Mettre à jour les champs de la commande
             $commande->update([
                 'idclient'      => $idclient ?? $commande->idclient,
+                // [NOTE] idem : pas de table pour 'A emporter' ni 'Livraison'
                 'idtable'       => $request->typecommande === 'Standard' ? $request->idtable : null,
                 'typecommande'  => $request->typecommande,
                 'montant'       => $request->montant,
@@ -609,6 +612,8 @@ class CommandeController extends Controller
         DB::beginTransaction();
 
         try {
+            // [NOTE] 'A emporter' suit le même chemin que 'Standard' → 'Servie'
+            // (seule 'Livraison' passe par 'Expédiée')
             $prochainStatut = $commande->typecommande === 'Livraison'
                 ? 'Expédiée'
                 : 'Servie';
@@ -723,7 +728,7 @@ class CommandeController extends Controller
     private function validerRequete(Request $request): void
     {
         $request->validate([
-            'typecommande' => 'required|in:Standard,Livraison',
+            'typecommande' => 'required|in:Standard,A emporter,Livraison',
             'panier'       => 'required|json',
             'montant'      => 'required|numeric|min:1',
         ], [
@@ -860,6 +865,12 @@ class CommandeController extends Controller
     ): ?string {
         $flux = [
             'Standard' => [
+                'En attente'     => 'En préparation',
+                'En préparation' => 'Servie',
+                'Servie'         => null,
+                'Annulée'        => null,
+            ],
+            'A emporter' => [
                 'En attente'     => 'En préparation',
                 'En préparation' => 'Servie',
                 'Servie'         => null,

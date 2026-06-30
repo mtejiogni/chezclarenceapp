@@ -156,6 +156,10 @@ Route::middleware(['auth', 'statut'])->group(function () {
         Route::get('/statistiques/export',
             [StatistiqueController::class, 'export'])
             ->name('statistiques.export');
+        
+        Route::get('/statistiques/refresh',
+            [StatistiqueController::class, 'refresh'])
+            ->name('statistiques.refresh');
 
         Route::get('/statistiques',
             [StatistiqueController::class, 'index'])

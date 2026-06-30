@@ -15,13 +15,13 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
 
         // Rediriger vers le bon dashboard selon le rôle
         return match($user->role) {
-            'Administrateur' => $this->dashboardAdmin(),
+            'Administrateur' => $this->dashboardAdmin($request),
             'Caissier'       => $this->dashboardCaissier(),
             'Serveur'        => $this->dashboardServeur(),
             'Cuisinier'      => $this->dashboardCuisinier(),
@@ -34,7 +34,7 @@ class DashboardController extends Controller
     // DASHBOARD ADMINISTRATEUR
     // =========================================================
 
-    private function dashboardAdmin()
+    private function dashboardAdmin(Request $request)
     {
         $today     = Carbon::today();
         $debutMois = Carbon::now()->startOfMonth();
@@ -139,8 +139,9 @@ class DashboardController extends Controller
             ->toArray();
 
         $dataRepartition = [
-            'Standard'  => $repartition['Standard']  ?? 0,
-            'Livraison' => $repartition['Livraison'] ?? 0,
+            'Standard'   => $repartition['Standard']   ?? 0,
+            'A emporter' => $repartition['A emporter'] ?? 0,
+            'Livraison'  => $repartition['Livraison']  ?? 0,
         ];
 
         // ── Top 5 plats les plus vendus (mois en cours) ───────
@@ -181,6 +182,119 @@ class DashboardController extends Controller
             ? round((($caJour - $caHier) / $caHier) * 100, 1)
             : ($caJour > 0 ? 100 : 0);
 
+        // ── [AJOUT] Données pour l'onglet Caisse ──────────────────
+        // Même bug que Cuisine/Livraisons/Tables/Stats : ces variables
+        // n'existaient que dans dashboardCaissier(), jamais ici, alors
+        // que l'Administrateur voit aussi l'onglet Caisse.
+        $commandesEncaissees = Commande::whereDate('datecommande', $today)
+            ->whereIn('statut_courant', ['Servie', 'Livrée'])
+            ->whereNull('void')
+            ->with(['lignes.menu', 'table'])
+            ->orderByDesc('updated_at')
+            ->get();
+
+        $totalCaisse  = $commandesEncaissees->sum('montant');
+        $nbEncaissees = $commandesEncaissees->count();
+
+        $aEncaisser = Commande::whereDate('datecommande', $today)
+            ->where('statut_courant', 'Servie')
+            ->whereNull('void')
+            ->with(['table', 'lignes'])
+            ->orderBy('created_at')
+            ->get();
+
+        $commandesActives = Commande::whereDate('datecommande', $today)
+            ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
+            ->whereNull('void')
+            ->with(['table', 'lignes'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        $panierMoyen = $nbEncaissees > 0
+            ? round($totalCaisse / $nbEncaissees, 0)
+            : 0;
+
+        // ── [AJOUT] Données pour l'onglet Cuisine ─────────────────
+        // $commandesEnAttente plus haut est un ENTIER (compteur KPI/badge),
+        // on a donc besoin d'une variable distincte avec les vraies
+        // commandes pour pouvoir afficher les bons de préparation.
+        $cuisineEnAttente = Commande::where('statut_courant', 'En attente')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['lignes.menu', 'table'])
+            ->orderBy('heurecommande')
+            ->get();
+
+        $enPreparation = Commande::where('statut_courant', 'En préparation')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['lignes.menu', 'table'])
+            ->orderBy('heurecommande')
+            ->get();
+
+        // ── [AJOUT] Données pour l'onglet Livraisons ──────────────
+        $livraisonsAttente = Commande::where('typecommande', 'Livraison')
+            ->where('statut_courant', 'En attente')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['client', 'lignes.menu'])
+            ->orderBy('heurecommande')
+            ->get();
+
+        $livraisonsPrepa = Commande::where('typecommande', 'Livraison')
+            ->where('statut_courant', 'En préparation')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['client', 'lignes.menu'])
+            ->orderBy('heurecommande')
+            ->get();
+
+        $livraisonsEnRoute = Commande::where('typecommande', 'Livraison')
+            ->where('statut_courant', 'Expédiée')
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->with(['client', 'lignes.menu'])
+            ->orderByDesc('updated_at')
+            ->get();
+
+        // ── [AJOUT] Données pour l'onglet Tables ──────────────────
+        $tables = $this->chargerTablesPourDashboard();
+
+        // ── [AJOUT] Données pour l'onglet Statistiques ────────────
+        $periode = $request->get('periode', 'semaine');
+
+        [$debutStats, $finStats] = match ($periode) {
+            'jour' => [Carbon::today(), Carbon::today()],
+            'mois' => [Carbon::now()->startOfMonth(), Carbon::today()],
+            default => [Carbon::now()->subDays(6)->startOfDay(), Carbon::today()],
+        };
+
+        $statsQuery = fn() => Commande::whereNull('void')
+            ->whereBetween('datecommande', [
+                $debutStats->toDateString(),
+                $finStats->toDateString(),
+            ]);
+
+        $statsNbCommandes = (int) $statsQuery()
+            ->where('statut_courant', '!=', 'Annulée')
+            ->count();
+
+        $statsCaTotal = (float) $statsQuery()
+            ->whereIn('statut_courant', ['Servie', 'Livrée'])
+            ->sum('montant');
+
+        $stats = [
+            'ca_total'      => $statsCaTotal,
+            'nb_commandes'  => $statsNbCommandes,
+            'nb_livraisons' => (int) $statsQuery()
+                ->where('typecommande', 'Livraison')
+                ->where('statut_courant', '!=', 'Annulée')
+                ->count(),
+            'panier_moyen'  => $statsNbCommandes > 0
+                ? (int) round($statsCaTotal / $statsNbCommandes)
+                : 0,
+        ];
+
         return view('dashboard.index', compact(
             'commandesDuJour',
             'caJour',
@@ -201,7 +315,22 @@ class DashboardController extends Controller
             'dernieresCommandes',
             'evolutionCommandes',
             'evolutionCA',
-            'today'
+            'today',
+            // [AJOUT] données désormais transmises pour tous les onglets admin
+            'commandesEncaissees',
+            'totalCaisse',
+            'nbEncaissees',
+            'aEncaisser',
+            'commandesActives',
+            'panierMoyen',
+            'cuisineEnAttente',
+            'enPreparation',
+            'livraisonsAttente',
+            'livraisonsPrepa',
+            'livraisonsEnRoute',
+            'tables',
+            'stats',
+            'periode'
         ));
     }
 
@@ -245,6 +374,22 @@ class DashboardController extends Controller
             ? round($totalCaisse / $nbEncaissees, 0)
             : 0;
 
+        // ── [AJOUT] Répartition par type pour le graphique de la pane Caisse
+        // Manquait ici alors que la vue l'utilise pour TOUT rôle voyant
+        // cette pane (Administrateur ET Caissier).
+        $repartition = Commande::whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->select('typecommande', DB::raw('COUNT(*) as total'))
+            ->groupBy('typecommande')
+            ->pluck('total', 'typecommande')
+            ->toArray();
+
+        $dataRepartition = [
+            'Standard'   => $repartition['Standard']   ?? 0,
+            'A emporter' => $repartition['A emporter'] ?? 0,
+            'Livraison'  => $repartition['Livraison']  ?? 0,
+        ];
+
         return view('dashboard.index', compact(
             'commandesEncaissees',
             'totalCaisse',
@@ -252,6 +397,7 @@ class DashboardController extends Controller
             'aEncaisser',
             'commandesActives',
             'panierMoyen',
+            'dataRepartition',
             'today'
         ));
     }
@@ -266,25 +412,7 @@ class DashboardController extends Controller
         $serveur = Auth::user();
 
         // Tables avec leur statut en temps réel
-        $tables = TableResto::whereNull('void')
-            ->orderBy('intitule')
-            ->get()
-            ->map(function ($table) {
-                $commandeActive = Commande::where('idtable', $table->idtable)
-                    ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
-                    ->whereNull('void')
-                    ->with('lignes')
-                    ->latest()
-                    ->first();
-
-                $table->occupee         = (bool) $commandeActive;
-                $table->commande_active = $commandeActive;
-                $table->montant_en_cours = $commandeActive
-                    ? $commandeActive->montant
-                    : 0;
-
-                return $table;
-            });
+        $tables = $this->chargerTablesPourDashboard();
 
         // Commandes du serveur connecté aujourd'hui
         $mesCommandes = Commande::where('iduser', $serveur->iduser)
@@ -425,6 +553,34 @@ class DashboardController extends Controller
     }
 
     // =========================================================
+    // [AJOUT] HELPER PARTAGÉ — TABLES AVEC STATUT TEMPS RÉEL
+    // Utilisé par dashboardAdmin() et dashboardServeur()
+    // =========================================================
+
+    private function chargerTablesPourDashboard()
+    {
+        return TableResto::whereNull('void')
+            ->orderBy('intitule')
+            ->get()
+            ->map(function ($table) {
+                $commandeActive = Commande::where('idtable', $table->idtable)
+                    ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
+                    ->whereNull('void')
+                    ->with('lignes')
+                    ->latest()
+                    ->first();
+
+                $table->occupee          = (bool) $commandeActive;
+                $table->commande_active   = $commandeActive;
+                $table->montant_en_cours  = $commandeActive
+                    ? $commandeActive->montant
+                    : 0;
+
+                return $table;
+            });
+    }
+
+    // =========================================================
     // DASHBOARD PAR DEFAUT (Client ou rôle inconnu)
     // =========================================================
 
@@ -450,6 +606,10 @@ class DashboardController extends Controller
             'commandes_en_preparation' => Commande::where('statut_courant', 'En préparation')
                 ->whereNull('void')->count(),
 
+            // [AJOUT] manquait dans le payload alors que le JS l'attendait déjà
+            'nb_commandes_jour'       => Commande::whereDate('datecommande', $today)
+                ->whereNull('void')->count(),
+
             'livraisons_en_cours'     => Commande::where('typecommande', 'Livraison')
                 ->whereIn('statut_courant', ['En attente', 'En préparation', 'Expédiée'])
                 ->whereNull('void')->count(),
@@ -460,6 +620,15 @@ class DashboardController extends Controller
 
             'tables_occupees'         => TableResto::whereNull('void')
                 ->whereHas('commandesActives')->count(),
+
+            // [AJOUT] pour le rafraîchissement automatique de la pane Caisse
+            'nb_encaissees'           => Commande::whereDate('datecommande', $today)
+                ->whereIn('statut_courant', ['Servie', 'Livrée'])
+                ->whereNull('void')->count(),
+
+            'total_caisse'            => Commande::whereDate('datecommande', $today)
+                ->whereIn('statut_courant', ['Servie', 'Livrée'])
+                ->whereNull('void')->sum('montant'),
 
             'timestamp'               => now()->format('H:i:s'),
         ];

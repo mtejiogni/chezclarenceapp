@@ -1,8 +1,3 @@
-@extends('layouts.app')
-
-@section('title', isset($commande) ? 'Modifier la commande ' . $commande->reference : 'Nouvelle commande')
-@section('page-title', isset($commande) ? 'Modifier ' . $commande->reference : 'Nouvelle commande')
-
 @push('styles')
 <style>
     :root {
@@ -168,9 +163,7 @@
 
     .menu-card:hover .menu-card-img img { transform: scale(1.06); }
 
-    .menu-card-body {
-        padding: 8px 10px;
-    }
+    .menu-card-body { padding: 8px 10px; }
 
     .qty-badge {
         position: absolute; top: 6px; right: 6px;
@@ -206,9 +199,7 @@
 
     .cart-item:hover { border-color: #252525; }
 
-    .qty-ctrl {
-        display: flex; align-items: center; gap: 6px;
-    }
+    .qty-ctrl { display: flex; align-items: center; gap: 6px; }
 
     .qty-btn {
         width: 26px; height: 26px; border-radius: 6px;
@@ -246,7 +237,7 @@
         margin-top: 4px; display: flex; align-items: center; gap: 4px;
     }
 
-    /* ── Boutons principaux ── */
+    /* ── Boutons ── */
     .btn {
         display: inline-flex; align-items: center; gap: 7px;
         padding: 10px 20px; border-radius: 10px;
@@ -263,11 +254,6 @@
         background: #141414; border: 1px solid #1f1f1f; color: #555;
     }
     .btn-ghost:hover { color: #ccc; border-color: #333; }
-
-    .btn-danger {
-        background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2); color: #f87171;
-    }
-    .btn-danger:hover { background: #ef4444; color: #fff; }
 
     /* ── Résumé commande ── */
     .summary-card {
@@ -286,28 +272,45 @@
     }
     .menu-search::placeholder { color: #333; }
     .menu-search:focus { border-color: var(--cc-orange); }
+
+    {{-- ── [AJOUT] Carte type "À emporter" ── --}}
+    .type-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+    }
+
+    @media (max-width: 600px) {
+        .type-grid { grid-template-columns: 1fr; }
+    }
+
+    .type-card {
+        height: 160px;
+        border-radius: 16px;
+        padding: 24px;
+        border: 1.5px solid #1f1f1f;
+        background: #141414;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 0; cursor: pointer;
+        transition: all .2s;
+    }
+
+    .type-card:hover {
+        border-color: var(--cc-orange);
+        background: rgba(234,88,12,.06);
+    }
+
+    .type-card.selected {
+        border-color: var(--cc-orange);
+        background: rgba(234,88,12,.12);
+        box-shadow: 0 0 0 3px rgba(234,88,12,.2);
+    }
 </style>
 @endpush
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @section('content')
 
-{{-- ══════════════════════════════════════════════════════════ --}}
-{{-- FORMULAIRE PRINCIPAL                                      --}}
-{{-- ══════════════════════════════════════════════════════════ --}}
 <form method="POST"
       action="{{ isset($commande) ? route('commandes.update', $commande->idcommande) : route('commandes.store') }}"
       id="commandeForm"
@@ -317,12 +320,17 @@
     @if(isset($commande)) @method('PUT') @endif
 
     {{-- Champs cachés --}}
-    <input type="hidden" name="panier"       id="input-panier"    :value="JSON.stringify(panier)">
-    <input type="hidden" name="montant"      id="input-montant"   :value="total">
-    <input type="hidden" name="typecommande" id="input-type"      :value="type">
-    <input type="hidden" name="idtable"      id="input-table"     :value="tableId">
+    <input type="hidden" name="panier"       id="input-panier"   :value="JSON.stringify(panier)">
+    <input type="hidden" name="montant"      id="input-montant"  :value="total">
+    <input type="hidden" name="typecommande" id="input-type"     :value="type">
+    <input type="hidden" name="idtable"      id="input-table"    :value="tableId">
 
-    {{-- ══ BARRE D'ÉTAPES ══ --}}
+    {{-- ══ BARRE D'ÉTAPES ══
+         Le libellé de l'étape 2 s'adapte dynamiquement :
+         - Standard  → "Table"
+         - À emporter → (étape 2 sautée → pas de libellé affiché)
+         - Livraison  → "Client"
+    --}}
     <div class="step-bar">
         <div class="step" :class="{ active: etape >= 1, done: etape > 1 }">
             <div class="step-num">
@@ -331,13 +339,27 @@
             </div>
             <span class="step-label">Type</span>
         </div>
-        <div class="step" :class="{ active: etape >= 2, done: etape > 2 }">
+
+        {{--
+            Étape 2 :
+            - Standard   → sélection de table
+            - Livraison  → infos client
+            - À emporter → cette étape est SAUTÉE (on passe directement à 3)
+                           mais on l'affiche quand même dans la barre pour
+                           garder la cohérence visuelle (label masqué)
+        --}}
+        <div class="step"
+             x-show="type !== 'A emporter'"
+             :class="{ active: etape >= 2, done: etape > 2 }">
             <div class="step-num">
                 <span x-show="etape <= 2">2</span>
                 <i class="fa-solid fa-check" x-show="etape > 2" style="font-size:11px;"></i>
             </div>
-            <span class="step-label" x-text="type === 'Livraison' ? 'Client' : 'Table'"></span>
+            <span class="step-label"
+                  x-text="type === 'Livraison' ? 'Client' : 'Table'">
+            </span>
         </div>
+
         <div class="step" :class="{ active: etape >= 3, done: etape > 3 }">
             <div class="step-num">
                 <span x-show="etape <= 3">3</span>
@@ -345,6 +367,7 @@
             </div>
             <span class="step-label">Articles</span>
         </div>
+
         <div class="step" :class="{ active: etape >= 4 }">
             <div class="step-num">4</div>
             <span class="step-label">Validation</span>
@@ -370,10 +393,11 @@
 
     {{-- ════════════════════════════════════════════════════ --}}
     {{-- ÉTAPE 1 : TYPE DE COMMANDE                         --}}
+    {{-- [MODIF] Ajout du bouton "À emporter" (3 cartes)    --}}
     {{-- ════════════════════════════════════════════════════ --}}
     <div class="step-panel" :class="{ active: etape === 1 }">
 
-        <div style="max-width:500px;margin:0 auto;">
+        <div style="max-width:640px;margin:0 auto;">
             <h3 style="font-size:15px;font-weight:600;color:#e5e5e5;margin-bottom:6px;text-align:center;">
                 Quel type de commande ?
             </h3>
@@ -381,60 +405,71 @@
                 Sélectionnez le mode de service
             </p>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="type-grid">
 
-                {{-- Standard --}}
+                {{-- En salle --}}
                 <button type="button"
                         @click="choisirType('Standard')"
                         :class="type === 'Standard' ? 'selected' : ''"
-                        class="table-btn"
-                        style="height:160px;border-radius:16px;padding:24px;">
+                        class="type-card">
                     <div style="width:56px;height:56px;border-radius:16px;
                                 background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.2);
-                                display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                                display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
                         <i class="fa-solid fa-chair" style="font-size:22px;color:#60a5fa;"></i>
                     </div>
                     <div style="font-size:14px;font-weight:700;color:#e5e5e5;">En salle</div>
-                    <div style="font-size:11px;color:#444;margin-top:3px;">Commande sur table</div>
+                    <div style="font-size:11px;color:#444;margin-top:4px;">Commande sur table</div>
+                </button>
+
+                {{-- [AJOUT] À emporter --}}
+                <button type="button"
+                        @click="choisirType('A emporter')"
+                        :class="type === 'A emporter' ? 'selected' : ''"
+                        class="type-card">
+                    <div style="width:56px;height:56px;border-radius:16px;
+                                background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.2);
+                                display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
+                        <i class="fa-solid fa-bag-shopping" style="font-size:22px;color:#22c55e;"></i>
+                    </div>
+                    <div style="font-size:14px;font-weight:700;color:#e5e5e5;">À emporter</div>
+                    <div style="font-size:11px;color:#444;margin-top:4px;">Le client repart avec</div>
                 </button>
 
                 {{-- Livraison --}}
                 <button type="button"
                         @click="choisirType('Livraison')"
                         :class="type === 'Livraison' ? 'selected' : ''"
-                        class="table-btn"
-                        style="height:160px;border-radius:16px;padding:24px;">
+                        class="type-card">
                     <div style="width:56px;height:56px;border-radius:16px;
                                 background:rgba(234,88,12,.12);border:1px solid rgba(234,88,12,.2);
-                                display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                                display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
                         <i class="fa-solid fa-motorcycle" style="font-size:22px;color:#f97316;"></i>
                     </div>
                     <div style="font-size:14px;font-weight:700;color:#e5e5e5;">Livraison</div>
-                    <div style="font-size:11px;color:#444;margin-top:3px;">Commande à domicile</div>
+                    <div style="font-size:11px;color:#444;margin-top:4px;">Commande à domicile</div>
                 </button>
 
             </div>
 
-            {{-- Erreur si pas de type --}}
             <p x-show="erreurs.type" x-text="erreurs.type"
-               style="font-size:11px;color:#f87171;text-align:center;margin-top:12px;">
-            </p>
+               style="font-size:11px;color:#f87171;text-align:center;margin-top:12px;"></p>
         </div>
 
         <div style="display:flex;justify-content:flex-end;margin-top:24px;">
-            <button type="button" @click="etapeSuivante()"
-                    class="btn btn-primary">
+            <button type="button" @click="etapeSuivante()" class="btn btn-primary">
                 Continuer <i class="fa-solid fa-arrow-right"></i>
             </button>
         </div>
     </div>
 
     {{-- ════════════════════════════════════════════════════ --}}
-    {{-- ÉTAPE 2A : SÉLECTION DE TABLE (Standard)           --}}
+    {{-- ÉTAPE 2A : SÉLECTION DE TABLE (Standard uniquement) --}}
+    {{-- [INCHANGÉ — "À emporter" saute cette étape]        --}}
     {{-- ════════════════════════════════════════════════════ --}}
     <div class="step-panel" :class="{ active: etape === 2 && type === 'Standard' }">
 
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    margin-bottom:16px;flex-wrap:wrap;gap:8px;">
             <div>
                 <h3 style="font-size:15px;font-weight:600;color:#e5e5e5;margin:0;">
                     Choisir une table
@@ -469,11 +504,9 @@
                     {{ $table->occupee && !isset($commande) ? 'disabled' : '' }}
                     style="position:relative;">
 
-                {{-- Indicateur statut --}}
                 <span class="table-dot"
                       style="background:{{ $table->occupee ? '#ef4444' : '#22c55e' }};
-                             box-shadow:0 0 6px {{ $table->occupee ? 'rgba(239,68,68,.4)' : 'rgba(34,197,94,.4)' }};">
-                </span>
+                             box-shadow:0 0 6px {{ $table->occupee ? 'rgba(239,68,68,.4)' : 'rgba(34,197,94,.4)' }};"></span>
 
                 <i class="fa-solid fa-chair"
                    style="font-size:22px;color:{{ $table->occupee ? '#ef4444' : '#22c55e' }};"></i>
@@ -509,6 +542,7 @@
 
     {{-- ════════════════════════════════════════════════════ --}}
     {{-- ÉTAPE 2B : INFOS CLIENT (Livraison)                --}}
+    {{-- [INCHANGÉ — "À emporter" saute cette étape]        --}}
     {{-- ════════════════════════════════════════════════════ --}}
     <div class="step-panel" :class="{ active: etape === 2 && type === 'Livraison' }">
 
@@ -564,8 +598,7 @@
                 <span style="font-weight:400;color:#333;">(optionnel)</span>
             </label>
             <textarea x-model="consignes" name="consignes"
-                      class="field-input" rows="2"
-                      style="resize:none;"
+                      class="field-input" rows="2" style="resize:none;"
                       placeholder="Ex: Sonner au portail, pas de piment..."></textarea>
         </div>
 
@@ -590,16 +623,44 @@
     </div>
 
     {{-- ════════════════════════════════════════════════════ --}}
+    {{-- [AJOUT] ÉTAPE 2C : INFOS CLIENT "À emporter"       --}}
+    {{-- Nom + téléphone optionnels, pas d'adresse          --}}
+    {{-- ════════════════════════════════════════════════════ --}}
+    <div class="step-panel" :class="{ active: etape === 2 && type === 'A emporter' }">
+
+        {{--
+            Cette étape ne devrait jamais s'afficher car "À emporter"
+            saute l'étape 2 dans la navigation (etapeSuivante/Precedente).
+            Elle est présente par sécurité au cas où le retour depuis
+            l'étape 3 ramènerait à l'étape 2.
+        --}}
+        <div style="text-align:center;padding:40px 20px;color:#444;font-size:13px;">
+            <i class="fa-solid fa-bag-shopping" style="font-size:36px;color:#22c55e;display:block;margin-bottom:12px;"></i>
+            <strong style="color:#e5e5e5;">Commande à emporter</strong><br>
+            Aucune table n'est requise.
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:24px;">
+            <button type="button" @click="etapePrecedente()" class="btn btn-ghost">
+                <i class="fa-solid fa-arrow-left"></i> Retour
+            </button>
+            <button type="button" @click="etapeSuivante()" class="btn btn-primary">
+                Continuer <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    {{-- ════════════════════════════════════════════════════ --}}
     {{-- ÉTAPE 3 : SÉLECTION DES ARTICLES                   --}}
+    {{-- [MODIF] Consignes et mode paiement pour "À emporter" --}}
     {{-- ════════════════════════════════════════════════════ --}}
     <div class="step-panel" :class="{ active: etape === 3 }">
 
         <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
 
-            {{-- Colonne gauche : catalogue ── --}}
+            {{-- Colonne gauche : catalogue --}}
             <div>
 
-                {{-- Recherche + catégories --}}
                 <div style="margin-bottom:14px;">
                     <div style="position:relative;margin-bottom:10px;">
                         <i class="fa-solid fa-magnifying-glass"
@@ -628,7 +689,6 @@
                     </div>
                 </div>
 
-                {{-- Grille des plats --}}
                 <div class="menu-grid" id="menu-grid">
                     @foreach($menus as $menu)
                     <div class="menu-card"
@@ -636,17 +696,14 @@
                          @click="ajouterAuPanier({{ $menu->idmenu }}, '{{ addslashes($menu->intitule) }}', {{ $menu->pu }})"
                          :class="qteEnPanier({{ $menu->idmenu }}) > 0 ? 'in-cart' : ''">
 
-                        {{-- Badge quantité --}}
                         <div x-show="qteEnPanier({{ $menu->idmenu }}) > 0" class="qty-badge">
                             <span x-text="qteEnPanier({{ $menu->idmenu }})"></span>
                         </div>
 
-                        {{-- Photo --}}
                         <div class="menu-card-img">
                             @if($menu->photo)
                             <img src="{{ asset('storage/' . $menu->photo) }}"
-                                 alt="{{ $menu->intitule }}"
-                                 loading="lazy">
+                                 alt="{{ $menu->intitule }}" loading="lazy">
                             @else
                             <div style="width:100%;height:100%;display:flex;align-items:center;
                                         justify-content:center;background:#1a1a1a;">
@@ -655,7 +712,6 @@
                             @endif
                         </div>
 
-                        {{-- Infos --}}
                         <div class="menu-card-body">
                             <div style="font-size:12px;font-weight:600;color:#e5e5e5;
                                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
@@ -672,7 +728,6 @@
                     @endforeach
                 </div>
 
-                {{-- Message vide --}}
                 <div x-show="menusVisibles === 0"
                      style="text-align:center;padding:40px;color:#333;">
                     <i class="fa-solid fa-magnifying-glass" style="font-size:28px;display:block;margin-bottom:8px;"></i>
@@ -683,7 +738,7 @@
                    style="font-size:11px;color:#f87171;margin-top:10px;text-align:center;"></p>
             </div>
 
-            {{-- Colonne droite : panier ── --}}
+            {{-- Colonne droite : panier --}}
             <div class="summary-card">
 
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -695,7 +750,6 @@
                           x-text="panier.length + ' article(s)'"></span>
                 </div>
 
-                {{-- Articles du panier --}}
                 <div style="display:flex;flex-direction:column;gap:7px;
                             max-height:300px;overflow-y:auto;margin-bottom:14px;">
 
@@ -727,7 +781,6 @@
                         </div>
                     </template>
 
-                    {{-- Panier vide --}}
                     <div x-show="panier.length === 0"
                          style="text-align:center;padding:24px;color:#2a2a2a;">
                         <i class="fa-solid fa-cart-shopping" style="font-size:28px;display:block;margin-bottom:8px;"></i>
@@ -735,8 +788,12 @@
                     </div>
                 </div>
 
-                {{-- Consignes (mode Standard) --}}
-                <div x-show="type === 'Standard'" style="margin-bottom:12px;">
+                {{--
+                    [MODIF] Consignes : visible pour Standard ET À emporter
+                    (pour livraison elles sont saisies à l'étape 2)
+                --}}
+                <div x-show="type === 'Standard' || type === 'A emporter'"
+                     style="margin-bottom:12px;">
                     <label class="field-label">Consignes / Notes</label>
                     <textarea x-model="consignes" name="consignes"
                               class="field-input" rows="2"
@@ -744,8 +801,11 @@
                               placeholder="Sans piment, bien cuit..."></textarea>
                 </div>
 
-                {{-- Mode paiement (Standard) --}}
-                <div x-show="type === 'Standard'" class="field-group">
+                {{--
+                    [MODIF] Mode paiement : visible pour Standard ET À emporter
+                --}}
+                <div x-show="type === 'Standard' || type === 'A emporter'"
+                     class="field-group">
                     <label class="field-label">Mode de paiement</label>
                     <select x-model="modePaiement" name="mode_paiement" class="field-input">
                         <option value="Espèces">Espèces</option>
@@ -755,17 +815,23 @@
                     </select>
                 </div>
 
-                {{-- Séparateur --}}
+                {{-- [AJOUT] Info "À emporter" --}}
+                <div x-show="type === 'A emporter'"
+                     style="padding:8px 12px;border-radius:8px;margin-bottom:10px;
+                            background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);
+                            font-size:11px;color:#22c55e;display:flex;align-items:center;gap:6px;">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    Le client repart avec sa commande — aucune table assignée.
+                </div>
+
                 <div style="height:1px;background:#1a1a1a;margin:12px 0;"></div>
 
-                {{-- Total --}}
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <span style="font-size:13px;font-weight:600;color:#555;">Total</span>
                     <span style="font-size:18px;font-weight:700;color:#fff;"
                           x-text="fmt(total) + ' FCFA'"></span>
                 </div>
 
-                {{-- Vider le panier --}}
                 <button type="button" x-show="panier.length > 0"
                         @click="viderPanier()"
                         style="width:100%;margin-top:10px;padding:7px;border-radius:8px;
@@ -792,6 +858,7 @@
 
     {{-- ════════════════════════════════════════════════════ --}}
     {{-- ÉTAPE 4 : RÉCAPITULATIF ET VALIDATION              --}}
+    {{-- [MODIF] Affichage du badge "À emporter"            --}}
     {{-- ════════════════════════════════════════════════════ --}}
     <div class="step-panel" :class="{ active: etape === 4 }">
 
@@ -801,45 +868,69 @@
                 Récapitulatif de la commande
             </h3>
 
-            {{-- Infos générales --}}
             <div style="background:#141414;border:1px solid #1f1f1f;border-radius:13px;
                         padding:1.25rem;margin-bottom:14px;">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
 
+                    {{-- Type --}}
                     <div>
                         <div style="font-size:10px;color:#444;text-transform:uppercase;
                                     letter-spacing:1px;margin-bottom:3px;">Type</div>
                         <div style="font-size:13px;font-weight:600;color:#e5e5e5;
                                     display:flex;align-items:center;gap:6px;">
-                            <i :class="type === 'Livraison' ? 'fa-motorcycle' : 'fa-chair'"
+                            {{-- [MODIF] icône adaptée aux 3 types --}}
+                            <i :class="{
+                                    'fa-motorcycle':   type === 'Livraison',
+                                    'fa-chair':        type === 'Standard',
+                                    'fa-bag-shopping': type === 'A emporter'
+                               }"
                                class="fa-solid"
-                               :style="'color:' + (type === 'Livraison' ? '#f97316' : '#60a5fa')"></i>
-                            <span x-text="type"></span>
+                               :style="'color:' + (type === 'Livraison' ? '#f97316' : type === 'Standard' ? '#60a5fa' : '#22c55e')">
+                            </i>
+                            {{-- [MODIF] libellé lisible --}}
+                            <span x-text="type === 'A emporter' ? 'À emporter' : type"></span>
                         </div>
                     </div>
 
+                    {{-- Table (Standard uniquement) --}}
                     <div x-show="type === 'Standard' && tableNom">
                         <div style="font-size:10px;color:#444;text-transform:uppercase;
                                     letter-spacing:1px;margin-bottom:3px;">Table</div>
-                        <div style="font-size:13px;font-weight:600;color:#e5e5e5;" x-text="tableNom"></div>
+                        <div style="font-size:13px;font-weight:600;color:#e5e5e5;"
+                             x-text="tableNom"></div>
                     </div>
 
+                    {{-- Client (Livraison) --}}
                     <div x-show="type === 'Livraison' && nomClient">
                         <div style="font-size:10px;color:#444;text-transform:uppercase;
                                     letter-spacing:1px;margin-bottom:3px;">Client</div>
-                        <div style="font-size:13px;font-weight:600;color:#e5e5e5;" x-text="nomClient"></div>
+                        <div style="font-size:13px;font-weight:600;color:#e5e5e5;"
+                             x-text="nomClient"></div>
                     </div>
 
                     <div x-show="type === 'Livraison' && telClient">
                         <div style="font-size:10px;color:#444;text-transform:uppercase;
                                     letter-spacing:1px;margin-bottom:3px;">Téléphone</div>
-                        <div style="font-size:13px;font-weight:600;color:#e5e5e5;" x-text="'+237 ' + telClient"></div>
+                        <div style="font-size:13px;font-weight:600;color:#e5e5e5;"
+                             x-text="'+237 ' + telClient"></div>
                     </div>
 
+                    {{-- [AJOUT] Badge À emporter --}}
+                    <div x-show="type === 'A emporter'" style="grid-column:span 2;">
+                        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;
+                                    border-radius:8px;background:rgba(34,197,94,.06);
+                                    border:1px solid rgba(34,197,94,.15);font-size:12px;color:#22c55e;">
+                            <i class="fa-solid fa-bag-shopping"></i>
+                            Le client repart avec sa commande — aucune table assignée.
+                        </div>
+                    </div>
+
+                    {{-- Mode paiement --}}
                     <div>
                         <div style="font-size:10px;color:#444;text-transform:uppercase;
                                     letter-spacing:1px;margin-bottom:3px;">Paiement</div>
-                        <div style="font-size:13px;font-weight:600;color:#e5e5e5;" x-text="modePaiement"></div>
+                        <div style="font-size:13px;font-weight:600;color:#e5e5e5;"
+                             x-text="modePaiement"></div>
                     </div>
 
                 </div>
@@ -861,7 +952,7 @@
                 </div>
             </div>
 
-            {{-- Articles récapitulatif --}}
+            {{-- Articles --}}
             <div style="background:#141414;border:1px solid #1f1f1f;border-radius:13px;
                         padding:1.25rem;margin-bottom:14px;">
                 <div style="font-size:12px;font-weight:700;color:#555;
@@ -886,7 +977,6 @@
                     </div>
                 </template>
 
-                {{-- Total --}}
                 <div style="display:flex;justify-content:space-between;align-items:center;
                             margin-top:12px;padding-top:12px;border-top:1px solid #252525;">
                     <span style="font-size:14px;font-weight:700;color:#e5e5e5;">Total à payer</span>
@@ -903,7 +993,6 @@
                 <button type="button"
                         @click="soumettre()"
                         :disabled="chargement"
-                        :class="chargement ? 'opacity-60' : ''"
                         class="btn btn-primary"
                         style="flex:1;">
                     <span x-show="!chargement" style="display:flex;align-items:center;gap:7px;">
@@ -938,15 +1027,8 @@
 
 @endsection
 
-
-
-
-
-
-
 @push('scripts')
 <script>
-// Enregistrement du composant Alpine AVANT Alpine.start()
 document.addEventListener('alpine:init', () => {
     Alpine.data('commandeApp', () => ({
 
@@ -959,20 +1041,20 @@ document.addEventListener('alpine:init', () => {
         tableNom: '{{ isset($commande) && $commande->table ? $commande->table->intitule : "" }}',
 
         // ── Client (livraison) ──
-        nomClient:   '{{ old("nom_client", isset($commande) && $commande->client ? addslashes($commande->client->prenom . " " . $commande->client->nom) : "") }}',
-        telClient:   '{{ old("tel_client", isset($commande) && $commande->client ? $commande->client->telephone : "") }}',
-        adresse:     '{{ old("adresse", isset($commande) ? addslashes($commande->adresse ?? "") : "") }}',
+        nomClient: '{{ old("nom_client", isset($commande) && $commande->client ? addslashes($commande->client->prenom . " " . $commande->client->nom) : "") }}',
+        telClient: '{{ old("tel_client", isset($commande) && $commande->client ? $commande->client->telephone : "") }}',
+        adresse:   '{{ old("adresse",    isset($commande) ? addslashes($commande->adresse ?? "") : "") }}',
 
-        // ── Panier ── (données PHP injectées via variable JS)
+        // ── Panier ──
         panier: {!! json_encode($panierInitial) !!},
 
         // ── Options commande ──
-        consignes:    '{{ old("consignes", isset($commande) ? addslashes($commande->consignes ?? "") : "") }}',
+        consignes:    '{{ old("consignes",    isset($commande) ? addslashes($commande->consignes ?? "") : "") }}',
         modePaiement: '{{ old("mode_paiement", isset($commande) ? $commande->mode_paiement : "Espèces") }}',
 
         // ── Filtres catalogue ──
-        catActive:  null,
-        recherche:  '',
+        catActive: null,
+        recherche: '',
 
         // ── UI ──
         chargement: false,
@@ -990,11 +1072,13 @@ document.addEventListener('alpine:init', () => {
         // ── Init ──
         init() {
             @if(isset($commande))
+            // En mode édition, aller directement au récapitulatif
             this.etape = 4;
             @endif
         },
 
-        // ── Navigation wizard ──
+        // ── Choix du type ──
+        // [MODIF] Réinitialise aussi tableId pour "À emporter"
         choisirType(t) {
             this.type     = t;
             this.tableId  = null;
@@ -1008,18 +1092,33 @@ document.addEventListener('alpine:init', () => {
             delete this.erreurs.table;
         },
 
+        // ── Navigation wizard ──
+        // [MODIF] "À emporter" saute l'étape 2 (aller et retour)
         etapeSuivante() {
             if (!this.validerEtape()) return;
-            this.etape++;
+
+            if (this.etape === 1 && this.type === 'A emporter') {
+                // Sauter l'étape 2 : passer directement à l'étape 3
+                this.etape = 3;
+            } else {
+                this.etape++;
+            }
+
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
         etapePrecedente() {
-            this.etape--;
+            if (this.etape === 3 && this.type === 'A emporter') {
+                // Revenir à l'étape 1 (pas l'étape 2)
+                this.etape = 1;
+            } else {
+                this.etape--;
+            }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
         // ── Validation par étape ──
+        // [MODIF] L'étape 2 pour "À emporter" n'a aucune règle
         validerEtape() {
             this.erreurs = {};
 
@@ -1030,6 +1129,7 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
+            // Étape 2 : Standard → table obligatoire
             if (this.etape === 2 && this.type === 'Standard') {
                 if (!this.tableId) {
                     this.erreurs.table = 'Veuillez sélectionner une table.';
@@ -1037,6 +1137,7 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
+            // Étape 2 : Livraison → infos client obligatoires
             if (this.etape === 2 && this.type === 'Livraison') {
                 if (!this.nomClient.trim()) {
                     this.erreurs.nomClient = 'Le nom du client est obligatoire.';
@@ -1052,6 +1153,8 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
+            // [NOTE] "À emporter" à l'étape 2 : aucune validation (étape sautée)
+
             if (this.etape === 3) {
                 if (this.panier.length === 0) {
                     this.erreurs.panier = 'Le panier est vide. Ajoutez au moins un article.';
@@ -1065,25 +1168,19 @@ document.addEventListener('alpine:init', () => {
         // ── Validation temps réel ──
         valider(champ) {
             delete this.erreurs[champ];
-            if (champ === 'nomClient' && !this.nomClient.trim()) {
+            if (champ === 'nomClient' && !this.nomClient.trim())
                 this.erreurs.nomClient = 'Le nom est obligatoire.';
-            }
-            if (champ === 'telClient' && this.telClient.length < 8) {
+            if (champ === 'telClient' && this.telClient.length < 8)
                 this.erreurs.telClient = 'Numéro invalide (min. 8 chiffres).';
-            }
-            if (champ === 'adresse' && !this.adresse.trim()) {
+            if (champ === 'adresse' && !this.adresse.trim())
                 this.erreurs.adresse = "L'adresse est obligatoire.";
-            }
         },
 
         // ── Gestion du panier ──
         ajouterAuPanier(id, nom, pu) {
             const item = this.panier.find(i => i.id === id);
-            if (item) {
-                item.qte++;
-            } else {
-                this.panier.push({ id, nom, pu, qte: 1 });
-            }
+            if (item) { item.qte++; }
+            else { this.panier.push({ id, nom, pu, qte: 1 }); }
             delete this.erreurs.panier;
         },
 
@@ -1109,13 +1206,11 @@ document.addEventListener('alpine:init', () => {
                 text: 'Tous les articles seront retirés.',
                 icon: 'warning',
                 iconColor: '#ea580c',
-                background: '#141414',
-                color: '#e5e5e5',
+                background: '#141414', color: '#e5e5e5',
                 confirmButtonColor: '#ef4444',
                 confirmButtonText: 'Oui, vider',
                 showCancelButton: true,
-                cancelButtonText: 'Annuler',
-                cancelButtonColor: '#1f1f1f',
+                cancelButtonText: 'Annuler', cancelButtonColor: '#1f1f1f',
             }).then(r => { if (r.isConfirmed) this.panier = []; });
         },
 
@@ -1137,8 +1232,15 @@ document.addEventListener('alpine:init', () => {
         },
 
         // ── Soumission ──
+        // [MODIF] Message de confirmation adapté aux 3 types
         soumettre() {
             if (!this.validerEtape()) return;
+
+            const typeLabel = this.type === 'A emporter'
+                ? '🛍️ À emporter'
+                : this.type === 'Livraison'
+                    ? '🛵 Livraison pour ' + this.nomClient
+                    : '🪑 ' + this.tableNom;
 
             Swal.fire({
                 title: '{{ isset($commande) ? "Enregistrer les modifications ?" : "Valider la commande ?" }}',
@@ -1147,16 +1249,11 @@ document.addEventListener('alpine:init', () => {
                         ${this.panier.length} article(s) —
                         <strong style="color:#f97316;">${this.fmt(this.total)} FCFA</strong>
                     </div>
-                    <div style="font-size:12px;color:#444;">
-                        ${this.type === 'Livraison'
-                            ? '🛵 Livraison pour ' + this.nomClient
-                            : '🪑 ' + this.tableNom}
-                    </div>
+                    <div style="font-size:12px;color:#444;">${typeLabel}</div>
                 `,
                 icon: 'question',
                 iconColor: '#ea580c',
-                background: '#141414',
-                color: '#e5e5e5',
+                background: '#141414', color: '#e5e5e5',
                 confirmButtonColor: '#ea580c',
                 confirmButtonText: '<i class="fa-solid fa-check" style="margin-right:6px"></i>Confirmer',
                 showCancelButton: true,
