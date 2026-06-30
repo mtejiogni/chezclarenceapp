@@ -497,7 +497,7 @@
                     <i class="fa-solid fa-cash-register" style="color:#ea580c;margin-right:8px;"></i>Caisse du jour
                 </h2>
                 <div style="display:flex;gap:8px;">
-                    <a href="{{ route('caisse.rapport') }}" class="btn-cc btn-cc-ghost">
+                    <a target="_blank" href="{{ route('caisse.rapport') }}" class="btn-cc btn-cc-ghost">
                         <i class="fa-solid fa-file-pdf"></i>Rapport PDF
                     </a>
                     <button onclick="confirmerCloture()" class="btn-cc btn-cc-primary">
@@ -535,6 +535,13 @@
                 </h3>
                 <div style="display:flex;flex-direction:column;gap:7px;">
                     @foreach($aEncaisser as $cmd)
+                    @php
+                        $couleurStatut = match($cmd->statut_courant) {
+                            'En préparation' => '#60a5fa',
+                            'Expédiée'       => '#f97316',
+                            default          => '#eab308', // En attente
+                        };
+                    @endphp
                     <div style="display:flex;align-items:center;justify-content:space-between;
                                 padding:10px 14px;border-radius:9px;background:#0d0d0d;border:1px solid #1a1a1a;">
                         <div>
@@ -542,6 +549,9 @@
                             @if($cmd->table)
                             <span style="font-size:11px;color:#444;margin-left:6px;">{{ $cmd->table->intitule }}</span>
                             @endif
+                            <span style="font-size:10px;font-weight:600;margin-left:6px;color:{{ $couleurStatut }};">
+                                {{ $cmd->statut_courant }}
+                            </span>
                         </div>
                         <div style="display:flex;align-items:center;gap:10px;">
                             <span style="font-size:13px;font-weight:700;color:#fff;">
@@ -1018,7 +1028,11 @@ function confirmerCloture() {
         background: '#141414', color: '#e5e5e5',
         confirmButtonColor: '#ea580c', confirmButtonText: 'Oui, clôturer',
         showCancelButton: true, cancelButtonText: 'Annuler', cancelButtonColor: '#1f1f1f',
-    }).then(r => { if (r.isConfirmed) window.location.href = '{{ route("caisse.cloturer") }}'; });
+    }).then(r => {
+        if (r.isConfirmed) {
+            window.open('{{ route("caisse.cloturer") }}', '_blank');
+        }
+    });
 }
 
 // ── Refresh temps réel ───────────────────────────────────────

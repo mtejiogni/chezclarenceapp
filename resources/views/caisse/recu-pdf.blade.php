@@ -123,8 +123,7 @@
 
     {{-- ══════════════════════════════════════════════════════
          EN-TÊTE RESTAURANT
-         [AJOUT] données réelles issues de la table `parametres`
-         (plus de placeholders en dur).
+         Données réelles issues de la table `parametres`
     ══════════════════════════════════════════════════════════ --}}
     <div class="center">
         @if($parametres->logo)
@@ -147,7 +146,7 @@
 
     {{-- ══════════════════════════════════════════════════════
          RÉFÉRENCE DU TICKET
-         [AJOUT] préfixe configurable (prefixe_recu)
+         préfixe configurable (prefixe_recu)
     ══════════════════════════════════════════════════════════ --}}
     <div class="center" style="font-size:9px;color:#555;margin-bottom:4px;">
         Ticket n° {{ ($parametres->prefixe_recu ?? 'CC') . '-' . $commande->reference }}

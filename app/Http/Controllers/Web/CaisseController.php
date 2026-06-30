@@ -25,20 +25,18 @@ use Barryvdh\DomPDF\Facade\Pdf;
 // Convention déjà en place ailleurs dans l'app (Dashboard/Statistique) :
 //   - une commande est considérée "encaissée" dès que son statut est
 //     'Servie' OU 'Livrée' (le CA encaissé = somme de ces commandes)
-//   - 'Servie' seule = en attente de remise/encaissement au comptoir
+//   - une commande est "à encaisser" / en attente de
+//     remise au comptoir tant qu'elle n'est NI 'Servie' NI 'Livrée'
+//     (et non annulée) — c'est-à-dire tant qu'elle est encore
+//     'En attente', 'En préparation' ou 'Expédiée'.
 //   - typecommande : 'Standard' | 'A emporter' | 'Livraison'
-//
-// NB : si l'app gère un workflow de paiement plus fin (ex. un champ
-// "encaisse" dédié), adapter calculerEncaissement() en conséquence —
-// ce contrôleur reprend la convention déjà utilisée par
-// DashboardController::dashboardCaissier() pour rester cohérent.
 // ══════════════════════════════════════════════════════════════
 
 class CaisseController extends Controller
 {
     // =========================================================
     // PAGE PRINCIPALE — Caisse du jour (ou d'une date choisie)
-    // GET /caisse?date=2026-06-30
+    // GET /caisse?date=AAAA-MM-JJ
     // =========================================================
 
     public function index(Request $request)
@@ -62,20 +60,12 @@ class CaisseController extends Controller
             ? (int) round($totalCaisse / $nbEncaissees)
             : 0;
 
-        // ── À encaisser (servies, en attente de passage en caisse) ─
+        // ── À encaisser (ni Servie, ni Livrée, ni Annulée) ────────
         $aEncaisser = Commande::whereDate('datecommande', $date)
-            ->where('statut_courant', 'Servie')
-            ->whereNull('void')
-            ->with(['table', 'lignes'])
-            ->orderBy('created_at')
-            ->get();
-
-        // ── Commandes encore actives (ni terminées, ni annulées) ──
-        $commandesActives = Commande::whereDate('datecommande', $date)
             ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
             ->whereNull('void')
             ->with(['table', 'lignes'])
-            ->orderByDesc('created_at')
+            ->orderBy('created_at')
             ->get();
 
         // ── Annulées du jour (contrôle caisse) ────────────────────
@@ -93,7 +83,7 @@ class CaisseController extends Controller
             ->map(fn ($groupe) => $groupe->sum('montant'))
             ->sortDesc();
 
-        // ── [AJOUT] Informations du restaurant (table parametres) ─
+        // ── Informations du restaurant (table parametres) ─
         $parametres = $this->chargerParametres();
 
         return view('caisse.index', compact(
@@ -103,7 +93,6 @@ class CaisseController extends Controller
             'nbEncaissees',
             'panierMoyen',
             'aEncaisser',
-            'commandesActives',
             'nbAnnulees',
             'dataRepartition',
             'parModePaiement',
@@ -124,7 +113,7 @@ class CaisseController extends Controller
 
         $commande->load(['lignes.menu', 'table', 'client', 'serveur']);
 
-        // ── [AJOUT] Informations du restaurant (table parametres) ─
+        // ── Informations du restaurant (table parametres) ─
         $parametres = $this->chargerParametres();
 
         $pdf = Pdf::loadView('caisse.recu-pdf', compact('commande', 'parametres'))
@@ -135,7 +124,7 @@ class CaisseController extends Controller
 
     // =========================================================
     // RAPPORT PDF — Rapport de caisse (rapport Z) pour une date
-    // GET /caisse/rapport?date=2026-06-30
+    // GET /caisse/rapport?date=AAAA-MM-JJ
     // =========================================================
 
     public function rapport(Request $request)
@@ -164,7 +153,7 @@ class CaisseController extends Controller
             ->map(fn ($groupe) => $groupe->sum('montant'))
             ->sortDesc();
 
-        // ── [AJOUT] Informations du restaurant (table parametres) ─
+        // ── Informations du restaurant (table parametres) ─
         $parametres = $this->chargerParametres();
 
         $pdf = Pdf::loadView('caisse.rapport-pdf', compact(
@@ -185,14 +174,7 @@ class CaisseController extends Controller
 
     // =========================================================
     // CLÔTURER LA CAISSE DU JOUR
-    // GET /caisse/cloturer
-    //
-    // NB : le bouton "Clôturer" du dashboard appelle actuellement
-    // cette route via window.location.href (GET). Si la route est
-    // déclarée en POST côté routes/web.php, il faudra adapter ce
-    // bouton pour soumettre un formulaire (recommandé pour une
-    // action qui modifie un état). Sinon, déclarer la route en GET
-    // pour rester compatible avec le bouton existant.
+    // POST /caisse/cloturer
     // =========================================================
 
     public function cloturer(Request $request)
@@ -203,26 +185,16 @@ class CaisseController extends Controller
 
         $today = Carbon::today();
 
-        // On refuse la clôture s'il reste des commandes actives non soldées
-        $nbActives = Commande::whereDate('datecommande', $today)
-            ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
-            ->whereNull('void')
-            ->count();
-
-        if ($nbActives > 0) {
-            return back()->with('error',
-                "Impossible de clôturer : {$nbActives} commande(s) encore active(s) aujourd'hui."
-            );
-        }
-
+        // On refuse la clôture s'il reste des commandes en attente
+        // d'encaissement (ni Servie, ni Livrée, ni Annulée)
         $nbAEncaisser = Commande::whereDate('datecommande', $today)
-            ->where('statut_courant', 'Servie')
+            ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
             ->whereNull('void')
             ->count();
 
         if ($nbAEncaisser > 0) {
             return back()->with('error',
-                "Impossible de clôturer : {$nbAEncaisser} commande(s) en attente d'encaissement."
+                "Impossible de clôturer : {$nbAEncaisser} commande(s) encore en attente d'encaissement aujourd'hui."
             );
         }
 
@@ -263,7 +235,7 @@ class CaisseController extends Controller
     }
 
     /**
-     * [AJOUT] Charger les informations du restaurant (table parametres).
+     * Charger les informations du restaurant (table parametres).
      * Repli sur une instance vide si la table n'a pas encore été
      * renseignée, pour éviter toute erreur null dans les vues PDF.
      */

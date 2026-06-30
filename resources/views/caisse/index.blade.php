@@ -217,7 +217,13 @@
     ════════════════════════════════ --}}
     <div>
 
-        {{-- À encaisser --}}
+        {{-- À encaisser
+             [CORRECTION] une commande est "à encaisser" tant qu'elle
+             n'est NI 'Servie' NI 'Livrée' (et non annulée) — donc
+             'En attente', 'En préparation' ou 'Expédiée'. Ce panel
+             remplace les anciens panels distincts "À encaisser" et
+             "Commandes actives", qui pointaient désormais vers le
+             même ensemble de commandes. --}}
         <div class="card">
             <div class="card-header">
                 <div class="card-header-title">
@@ -227,7 +233,21 @@
             </div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
                 @forelse($aEncaisser as $cmd)
+                @php
+                    $slug = match($cmd->statut_courant) {
+                        'En attente'     => 'attente',
+                        'En préparation' => 'prep',
+                        'Expédiée'       => 'expediee',
+                        default          => 'attente',
+                    };
+                    $iconType = match($cmd->typecommande) {
+                        'Livraison'  => 'fa-motorcycle',
+                        'A emporter' => 'fa-bag-shopping',
+                        default      => 'fa-chair',
+                    };
+                @endphp
                 <div class="cmd-row">
+                    <i class="fa-solid {{ $iconType }}" style="color:#555;font-size:13px;"></i>
                     <div style="flex:1;min-width:0;">
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                             <span style="font-size:13px;font-weight:700;color:#e5e5e5;">{{ $cmd->reference }}</span>
@@ -236,6 +256,7 @@
                                 {{ $cmd->table->intitule }}
                             </span>
                             @endif
+                            <span class="badge b-{{ $slug }}">{{ $cmd->statut_courant }}</span>
                         </div>
                         <div style="font-size:11px;color:#444;margin-top:2px;">
                             {{ $cmd->heurecommande }} · {{ $cmd->lignes->count() }} article(s)
@@ -253,46 +274,6 @@
                 <div style="text-align:center;padding:28px;color:#2a2a2a;">
                     <i class="fa-solid fa-circle-check" style="font-size:26px;display:block;margin-bottom:8px;color:#22c55e;"></i>
                     <p style="font-size:13px;">Rien à encaisser pour le moment</p>
-                </div>
-                @endforelse
-            </div>
-        </div>
-
-        {{-- Commandes actives --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-header-title">
-                    <i class="fa-solid fa-fire" style="color:var(--cc-orange);"></i>
-                    Commandes actives ({{ $commandesActives->count() }})
-                </div>
-            </div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
-                @forelse($commandesActives as $cmd)
-                @php
-                    $slug = match($cmd->statut_courant) {
-                        'En attente'     => 'attente',
-                        'En préparation' => 'prep',
-                        'Expédiée'       => 'expediee',
-                        default          => 'attente',
-                    };
-                    
-                    $iconType = match($cmd->typecommande) {
-                        'Livraison'  => 'fa-motorcycle',
-                        'A emporter' => 'fa-bag-shopping',
-                        default      => 'fa-chair',
-                    };
-                @endphp
-                <div class="cmd-row">
-                    <i class="fa-solid {{ $iconType }}" style="color:#555;font-size:13px;"></i>
-                    <div style="flex:1;min-width:0;">
-                        <span style="font-size:12px;font-weight:700;color:#e5e5e5;">{{ $cmd->reference }}</span>
-                        <span style="font-size:11px;color:#444;margin-left:6px;">{{ $cmd->lignes->count() }} article(s)</span>
-                    </div>
-                    <span class="badge b-{{ $slug }}">{{ $cmd->statut_courant }}</span>
-                </div>
-                @empty
-                <div style="text-align:center;padding:20px;color:#2a2a2a;">
-                    <p style="font-size:13px;">Aucune commande active</p>
                 </div>
                 @endforelse
             </div>
@@ -429,11 +410,6 @@
     </div>
 </div>
 
-{{-- Formulaire caché pour la clôture (POST sécurisé par CSRF) --}}
-<form method="POST" action="{{ route('caisse.cloturer') }}" id="clotureForm">
-    @csrf
-</form>
-
 @endsection
 
 @push('scripts')
@@ -454,7 +430,7 @@ function confirmerCloture() {
         cancelButtonColor: '#1f1f1f',
     }).then(r => {
         if (r.isConfirmed) {
-            document.getElementById('clotureForm').submit();
+            window.open('{{ route("caisse.cloturer") }}', '_blank');
         }
     });
 }

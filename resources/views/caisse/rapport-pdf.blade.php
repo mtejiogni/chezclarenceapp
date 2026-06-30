@@ -130,9 +130,9 @@
         font-size: 8px;
         font-weight: bold;
     }
-    .badge-encaissee { background: #dcfce7; color: #166534; }
-    .badge-annulee   { background: #fee2e2; color: #991b1b; }
-    .badge-autre     { background: #e5e7eb; color: #374151; }
+    .badge-encaissee  { background: #dcfce7; color: #166534; }
+    .badge-annulee    { background: #fee2e2; color: #991b1b; }
+    .badge-aencaisser { background: #fef3c7; color: #92400e; }
 
     .totaux-finaux { width: 100%; margin-top: 10px; }
     .totaux-finaux td { padding: 4px 0; font-size: 11px; }
@@ -170,8 +170,7 @@
 
     {{-- ══════════════════════════════════════════════════════
          EN-TÊTE
-         [AJOUT] données réelles issues de la table `parametres`
-         (plus de placeholders en dur).
+         Données réelles issues de la table `parametres`
     ══════════════════════════════════════════════════════════ --}}
     <table class="header-table">
         <tr>
@@ -315,7 +314,7 @@
                 $estAnnulee   = $cmd->statut_courant === 'Annulée';
                 $estEncaissee = in_array($cmd->statut_courant, ['Servie', 'Livrée']);
                 $typeLabel    = $cmd->typecommande === 'A emporter' ? 'À emporter' : $cmd->typecommande;
-                $badgeClass   = $estAnnulee ? 'badge-annulee' : ($estEncaissee ? 'badge-encaissee' : 'badge-autre');
+                $badgeClass   = $estAnnulee ? 'badge-annulee' : ($estEncaissee ? 'badge-encaissee' : 'badge-aencaisser');
             @endphp
             <tr class="{{ $estAnnulee ? 'annulee' : '' }}">
                 <td class="bold">{{ $cmd->reference }}</td>
