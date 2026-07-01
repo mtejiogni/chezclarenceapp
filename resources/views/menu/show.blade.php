@@ -405,12 +405,24 @@
                 @endphp
                 <div class="cmd-row">
                     {{-- Icône type commande --}}
+                    @php
+                        $iconTypeCmd = match($cmd->typecommande) {
+                            'Livraison'  => 'fa-motorcycle',
+                            'A emporter' => 'fa-bag-shopping',
+                            default      => 'fa-chair',
+                        };
+                        $couleurTypeCmd = match($cmd->typecommande) {
+                            'Livraison'  => '#f97316',
+                            'A emporter' => '#22c55e',
+                            default      => '#60a5fa',
+                        };
+                    @endphp
                     <div style="width:36px;height:36px;border-radius:9px;flex-shrink:0;
                                 background:#1a1a1a;border:1px solid #252525;
                                 display:flex;align-items:center;justify-content:center;">
-                        <i class="fa-solid {{ $cmd->typecommande === 'Livraison' ? 'fa-motorcycle' : 'fa-chair' }}"
+                        <i class="fa-solid {{ $iconTypeCmd }}"
                            style="font-size:13px;
-                                  color:{{ $cmd->typecommande === 'Livraison' ? '#f97316' : '#60a5fa' }};"></i>
+                                  color:{{ $couleurTypeCmd }};"></i>
                     </div>
 
                     {{-- Infos commande --}}
