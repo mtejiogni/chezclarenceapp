@@ -426,8 +426,17 @@
                             onmouseout="this.style.color='#555'; this.style.borderColor='#1f1f1f'">
                         <i class="fa-solid fa-bell" style="font-size:13px;"></i>
                     </button>
-                    @if(isset($commandesEnAttente) && $commandesEnAttente > 0)
-                    <span class="notif-dot pulse-o"></span>
+                    @php
+                        $nbNotifAttente = \App\Models\Commande::where('statut_courant', 'En attente')
+                            ->whereNull('void')
+                            ->count();
+                    @endphp
+                    @if($nbNotifAttente > 0)
+                    <span class="absolute -top-1.5 -right-1.5 z-10 flex h-6 min-w-[26px] items-center justify-center
+                                rounded-full border-2 border-[#0d0d0d] bg-orange-600 px-1
+                                text-[14px] font-bold leading-none text-white pulse-o">
+                        {{ $nbNotifAttente > 9 ? '9+' : $nbNotifAttente }}
+                    </span>
                     @endif
                 </div>
 

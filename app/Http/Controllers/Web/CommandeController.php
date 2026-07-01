@@ -507,6 +507,11 @@ class CommandeController extends Controller
         }
     }
 
+
+
+
+
+
     // =========================================================
     // ÉCRAN CUISINE (bons de préparation)
     // =========================================================
@@ -653,6 +658,12 @@ class CommandeController extends Controller
         }
     }
 
+
+
+
+
+
+    
     // =========================================================
     // TABLES DISPONIBLES (AJAX)
     // =========================================================

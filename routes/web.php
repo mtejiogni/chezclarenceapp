@@ -189,6 +189,7 @@ Route::middleware(['auth', 'statut'])->group(function () {
     });
 
 
+
     // =========================================================
     // CAISSE
     // =========================================================
@@ -217,6 +218,7 @@ Route::middleware(['auth', 'statut'])->group(function () {
             [CaisseController::class, 'annuler'])
             ->name('annuler');
     });
+
 
 
     // =========================================================
@@ -268,6 +270,7 @@ Route::middleware(['auth', 'statut'])->group(function () {
     });
 
 
+
     // =========================================================
     // LIVRAISONS
     // =========================================================
@@ -287,7 +290,12 @@ Route::middleware(['auth', 'statut'])->group(function () {
         Route::patch('/{commande}/statut',
             [LivraisonController::class, 'updateStatut'])
             ->name('statut');
+        
+        Route::get('/statut-temps-reel', 
+            [LivraisonController::class, 'statutTempsReel'])
+            ->name('statut-temps-reel');
     });
+
 
 
     // =========================================================
@@ -298,7 +306,8 @@ Route::middleware(['auth', 'statut'])->group(function () {
         ->name('cuisine.')
         ->group(function () {
 
-        Route::get('/', [CommandeController::class, 'cuisine'])
+        Route::get('/', 
+            [CommandeController::class, 'cuisine'])
             ->name('index');
 
         Route::patch('/{commande}/prendre-en-charge',
@@ -309,6 +318,9 @@ Route::middleware(['auth', 'statut'])->group(function () {
             [CommandeController::class, 'marquerPrete'])
             ->name('prete');
     });
+
+
+
 
 
     // ── Historiques par commande (tous rôles connectés) ───────
