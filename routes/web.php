@@ -186,7 +186,34 @@ Route::middleware(['auth', 'statut'])->group(function () {
         Route::post('/parametres/vider-cache', 
             [ParametreController::class, 'viderCache'])
          ->name('parametres.vider-cache');
+
+
+
+        // ── Historiques ────────────────────────────────────────
+        Route::get('/historiques', 
+            [HistoriqueController::class, 'index'])
+            ->name('historiques.index');
+
+        Route::get('/historiques/rapport', 
+            [HistoriqueController::class, 'rapport'])
+            ->name('historiques.rapport');
+
+        Route::get('/historiques/timeline', 
+            [HistoriqueController::class, 'timeline'])
+            ->name('historiques.timeline');
+
+        Route::get('/historiques/stats-jour', 
+            [HistoriqueController::class, 'statsJour'])
+            ->name('historiques.stats-jour');
+
+        Route::delete('/historiques/{historique}', 
+            [HistoriqueController::class, 'destroy'])
+            ->name('historiques.destroy');
     });
+
+
+
+
 
 
 
@@ -218,6 +245,7 @@ Route::middleware(['auth', 'statut'])->group(function () {
             [CaisseController::class, 'annuler'])
             ->name('annuler');
     });
+
 
 
 
@@ -267,7 +295,17 @@ Route::middleware(['auth', 'statut'])->group(function () {
             [CommandeController::class, 'destroy'])
             ->name('destroy')
             ->middleware('role:Administrateur');
+        
+        // ── Historiques par commande (tous rôles connectés) ───────
+        Route::get('/{commande}/historique',
+            [HistoriqueController::class, 'parCommande'])
+            ->name('historique');
+
+        Route::post('/{commande}/historique',
+            [HistoriqueController::class, 'store'])
+            ->name('historique.store');
     });
+
 
 
 
@@ -319,18 +357,6 @@ Route::middleware(['auth', 'statut'])->group(function () {
             ->name('prete');
     });
 
-
-
-
-
-    // ── Historiques par commande (tous rôles connectés) ───────
-    Route::get('/commandes/{commande}/historique',
-        [HistoriqueController::class, 'parCommande'])
-        ->name('commandes.historique');
-
-    Route::post('/commandes/{commande}/historique',
-        [HistoriqueController::class, 'store'])
-        ->name('commandes.historique.store');
 });
 
 
@@ -366,31 +392,3 @@ Route::prefix('commandes/{commande}/lignes')
         ->name('remise');
 });
 
-
-
-
-
-
-// =========================================================
-// HISTORIQUES ADMIN
-// (hors groupe middleware role — à corriger si besoin)
-// =========================================================
-Route::prefix('historiques')
-    ->name('admin.historiques.')
-    ->group(function () {
-
-    Route::get('/', [HistoriqueController::class, 'index'])
-        ->name('index');
-
-    Route::get('/rapport', [HistoriqueController::class, 'rapport'])
-        ->name('rapport');
-
-    Route::get('/timeline', [HistoriqueController::class, 'timeline'])
-        ->name('timeline');
-
-    Route::get('/stats-jour', [HistoriqueController::class, 'statsJour'])
-        ->name('stats-jour');
-
-    Route::delete('/{historique}', [HistoriqueController::class, 'destroy'])
-        ->name('destroy');
-});

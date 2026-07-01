@@ -315,23 +315,24 @@
             Raccourcis
         </div>
 
-
-        <a href="{{ route('admin.tables.index') }}"
-           class="param-nav-item" style="text-decoration:none;">
-            <div class="nav-ico"><i class="fa-solid fa-chair"></i></div>
-            Tables & Salles
-        </a>
-
         <a href="{{ route('admin.categories.index') }}"
            class="param-nav-item" style="text-decoration:none;">
             <div class="nav-ico"><i class="fa-solid fa-layer-group"></i></div>
             Catégories
         </a>
 
-        <a href="{{ route('admin.utilisateurs.index') }}"
+
+        <a href="{{ route('admin.statuts.index') }}"
            class="param-nav-item" style="text-decoration:none;">
-            <div class="nav-ico"><i class="fa-solid fa-users"></i></div>
-            Utilisateurs
+            <div class="nav-ico"><i class="fa-solid fa-list-check"></i></div>
+            Status
+        </a>
+
+
+        <a href="{{ route('admin.historiques.index') }}"
+           class="param-nav-item" style="text-decoration:none;">
+            <div class="nav-ico"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            Historiques
         </a>
 
     </nav>

@@ -33,7 +33,7 @@ class StatutController extends Controller
         // Mapping couleur / icône pour chaque statut
         $config = $this->getConfig();
 
-        return view('admin.statuts.index', compact('statuts', 'config'));
+        return view('statut.index', compact('statuts', 'config'));
     }
 
     // =========================================================
@@ -47,7 +47,7 @@ class StatutController extends Controller
 
         $config = $this->getConfig();
 
-        return view('admin.statuts.create', compact('prochainePriorite', 'config'));
+        return view('statut.create', compact('prochainePriorite', 'config'));
     }
 
     // =========================================================
@@ -147,7 +147,7 @@ class StatutController extends Controller
 
         $config = $this->getConfig();
 
-        return view('admin.statuts.show', compact(
+        return view('statut.show', compact(
             'statut',
             'commandesActives',
             'historiqueUsage',
@@ -179,7 +179,7 @@ class StatutController extends Controller
         $estSysteme = in_array($statut->intitule, $statutsSysteme);
         $config     = $this->getConfig();
 
-        return view('admin.statuts.edit', compact('statut', 'estSysteme', 'config'));
+        return view('statut.edit', compact('statut', 'estSysteme', 'config'));
     }
 
     // =========================================================

@@ -63,7 +63,7 @@ class HistoriqueController extends Controller
         // Liste des statuts pour le filtre
         $statuts = Statut::orderBy('priorite')->whereNull('void')->get();
 
-        return view('admin.historiques.index', compact(
+        return view('historique.index', compact(
             'historiques',
             'statsJour',
             'statuts'
@@ -116,7 +116,7 @@ class HistoriqueController extends Controller
             ]);
         }
 
-        return view('admin.historiques.par-commande', compact(
+        return view('historique.par-commande', compact(
             'commande',
             'historiques'
         ));
@@ -322,7 +322,7 @@ class HistoriqueController extends Controller
             ]);
         }
 
-        return view('admin.historiques.rapport', compact(
+        return view('historique.rapport', compact(
             'transitionsParStatut',
             'heures',
             'commandesActives',
