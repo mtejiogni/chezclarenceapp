@@ -248,26 +248,6 @@
 @endpush
 
 @section('content')
-
-{{-- Alertes flash --}}
-@if(session('success'))
-<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;
-            border-radius:10px;margin-bottom:18px;font-size:13px;
-            background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:#22c55e;">
-    <i class="fa-solid fa-circle-check"></i>
-    {{ session('success') }}
-</div>
-@endif
-
-@if(session('error'))
-<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;
-            border-radius:10px;margin-bottom:18px;font-size:13px;
-            background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171;">
-    <i class="fa-solid fa-circle-exclamation"></i>
-    {{ session('error') }}
-</div>
-@endif
-
 <div style="display:flex;gap:20px;align-items:flex-start;">
 
     {{-- ── Navigation verticale ── --}}
@@ -758,7 +738,6 @@
 
         {{-- ════════════════════════════════════════════════
              SECTION 4 : CAISSE & REÇUS
-             Supprimé : champ impression_auto
         ════════════════════════════════════════════════ --}}
         <div id="section-caisse" class="param-section">
 

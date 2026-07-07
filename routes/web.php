@@ -33,12 +33,23 @@ Route::get('/', function () {
 // =========================================================
 Route::middleware('guest')->group(function () {
 
-    Route::get('/connexion', [AuthController::class, 'showLogin'])
+    Route::get('/connexion', 
+        [AuthController::class, 'showLogin'])
         ->name('login');
 
-    Route::post('/connexion', [AuthController::class, 'login'])
+    Route::post('/connexion', 
+        [AuthController::class, 'login'])
         ->middleware('throttle:5,1')
         ->name('login.post');
+    
+    Route::get('/inscription', 
+        [AuthController::class, 'showRegister'])
+        ->name('register');
+    
+    Route::post('/inscription', 
+        [AuthController::class, 'register'])
+        ->middleware('throttle:5,1')
+        ->name('register.post');
 });
 
 Route::post('/deconnexion', [AuthController::class, 'logout'])
@@ -169,7 +180,7 @@ Route::middleware(['auth', 'statut'])->group(function () {
         // ── Paramètres ────────────────────────────────────────
         Route::get('/parametres',
             [ParametreController::class, 'index'])
-            ->name('parametres');
+            ->name('parametres.index');
 
         Route::put('/parametres',
             [ParametreController::class, 'update'])

@@ -335,8 +335,8 @@
                 <span class="sb-label">Utilisateurs</span>
             </a>
 
-            <a href="{{ route('admin.parametres') }}"
-               class="sb-link {{ request()->routeIs('admin.parametres') ? 'active' : '' }}">
+            <a href="{{ route('admin.parametres.index') }}"
+               class="sb-link {{ request()->routeIs('admin.parametres.index') ? 'active' : '' }}">
                 <i class="fa-solid fa-sliders"></i>
                 <span class="sb-label">Paramètres</span>
             </a>
