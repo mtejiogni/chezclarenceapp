@@ -191,7 +191,7 @@
             </td>
             <td style="width:40%;" class="right">
                 <div class="rapport-titre">Rapport de caisse</div>
-                <div class="rapport-date">{{ $date->translatedFormat('l d F Y') }}</div>
+                <div class="rapport-date">{{ $date->isoFormat('dddd DD MMMM YYYY') }}</div>
                 <div class="rapport-meta">
                     Généré le {{ now()->format('d/m/Y à H:i') }}<br>
                     Par {{ auth()->user()->prenom ?? '' }} {{ auth()->user()->nom ?? '' }}

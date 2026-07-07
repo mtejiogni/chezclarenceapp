@@ -131,7 +131,7 @@
     <div>
         <h2 style="font-size:18px;font-weight:700;color:#fff;margin:0;">
             <i class="fa-solid fa-cash-register" style="color:var(--cc-orange);margin-right:8px;"></i>
-            Caisse — {{ $date->translatedFormat('l d F Y') }}
+            Caisse — {{ $date->isoFormat('dddd DD MMMM YYYY') }}
         </h2>
         <p style="font-size:12px;color:#444;margin:4px 0 0;">
             Suivi des encaissements et clôture journalière

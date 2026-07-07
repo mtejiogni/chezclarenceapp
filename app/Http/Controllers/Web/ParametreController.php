@@ -86,7 +86,7 @@ class ParametreController extends Controller
 
     public function update(Request $request)
     {
-        $section   = $request->input('section', 'identite');
+        $section   = $request->input('section');
         $parametre = $this->getParametre();
 
         match ($section) {

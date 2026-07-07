@@ -398,7 +398,7 @@
                         @yield('page-title', 'Tableau de bord')
                     </h1>
                     <div style="font-size:11px; color:#333; margin-top:1px;">
-                        {{ now()->translatedFormat('l d F Y') }}
+                        {{ now()->isoFormat('dddd DD MMMM YYYY') }}
                     </div>
                 </div>
             </div>

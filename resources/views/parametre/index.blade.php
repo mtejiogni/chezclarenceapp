@@ -315,6 +315,12 @@
             Historiques
         </a>
 
+
+        <a href="{{ route('admin.historiques.index') }}"
+           class="param-nav-item" style="text-decoration:none;">
+            <div class="nav-ico"><i class="fa-solid fa-database"></i></div>
+            Sauvegarde & Restauration
+        </a>
     </nav>
 
     {{-- ── Contenu principal ── --}}
@@ -628,10 +634,9 @@
                 </div>
 
                 <div style="display:flex;justify-content:flex-end;">
-                    <button type="submit" class="btn btn-primary"
-                            onclick="loaderBtn(this,'Enregistrement...')">
-                        <i class="fa-solid fa-floppy-disk"></i>
-                        Enregistrer les coordonnées
+                    <button type="submit" id="btnCoordonnees" class="btn btn-primary">
+                        <i class="fa-solid fa-floppy-disk" id="icoCoordonnees"></i>
+                        <span id="txtCoordonnees">Enregistrer les coordonnées</span>
                     </button>
                 </div>
             </form>
@@ -640,7 +645,6 @@
 
         {{-- ════════════════════════════════════════════════
              SECTION 3 : WHATSAPP
-             Supprimé : toggle page_publique et son champ caché
         ════════════════════════════════════════════════ --}}
         <div id="section-whatsapp" class="param-section">
 
@@ -726,10 +730,9 @@
                 </div>
 
                 <div style="display:flex;justify-content:flex-end;">
-                    <button type="submit" class="btn btn-primary"
-                            onclick="loaderBtn(this,'Enregistrement...')">
-                        <i class="fa-solid fa-floppy-disk"></i>
-                        Enregistrer WhatsApp
+                    <button type="submit" id="btnWhatsapp" class="btn btn-primary">
+                        <i class="fa-solid fa-floppy-disk" id="icoWhatsapp"></i>
+                        <span id="txtWhatsapp">Enregistrer WhatsApp</span>
                     </button>
                 </div>
             </form>
@@ -852,10 +855,9 @@
                 </div>
 
                 <div style="display:flex;justify-content:flex-end;">
-                    <button type="submit" class="btn btn-primary"
-                            onclick="loaderBtn(this,'Enregistrement...')">
-                        <i class="fa-solid fa-floppy-disk"></i>
-                        Enregistrer la caisse
+                    <button type="submit" id="btnCaisse" class="btn btn-primary">
+                        <i class="fa-solid fa-floppy-disk" id="icoCaisse"></i>
+                        <span id="txtCaisse">Enregistrer la caisse</span>
                     </button>
                 </div>
             </form>
@@ -1128,6 +1130,33 @@ document.getElementById('formIdentite')?.addEventListener('submit', function() {
     const btn = document.getElementById('btnIdentite');
     const ico = document.getElementById('icoIdentite');
     const txt = document.getElementById('txtIdentite');
+    if (btn) btn.disabled = true;
+    if (ico) ico.className = 'fa-solid fa-spinner fa-spin';
+    if (txt) txt.textContent = 'Enregistrement...';
+});
+
+document.getElementById('formCoordonnees')?.addEventListener('submit', function() {
+    const btn = document.getElementById('btnCoordonnees');
+    const ico = document.getElementById('icoCoordonnees');
+    const txt = document.getElementById('txtCoordonnees');
+    if (btn) btn.disabled = true;
+    if (ico) ico.className = 'fa-solid fa-spinner fa-spin';
+    if (txt) txt.textContent = 'Enregistrement...';
+});
+
+document.getElementById('formWhatsapp')?.addEventListener('submit', function() {
+    const btn = document.getElementById('btnWhatsapp');
+    const ico = document.getElementById('icoWhatsapp');
+    const txt = document.getElementById('txtWhatsapp');
+    if (btn) btn.disabled = true;
+    if (ico) ico.className = 'fa-solid fa-spinner fa-spin';
+    if (txt) txt.textContent = 'Enregistrement...';
+});
+
+document.getElementById('formCaisse')?.addEventListener('submit', function() {
+    const btn = document.getElementById('btnCaisse');
+    const ico = document.getElementById('icoCaisse');
+    const txt = document.getElementById('txtCaisse');
     if (btn) btn.disabled = true;
     if (ico) ico.className = 'fa-solid fa-spinner fa-spin';
     if (txt) txt.textContent = 'Enregistrement...';

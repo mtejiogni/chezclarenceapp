@@ -670,7 +670,7 @@
                 @forelse($meilleuresJournees ?? [] as $j)
                 <tr>
                     <td style="color:#e5e5e5;font-weight:500;">
-                        {{ \Carbon\Carbon::parse($j->date)->translatedFormat('D d M') }}
+                        {{ \Carbon\Carbon::parse($j->date)->isoFormat('ddd DD MMM') }}
                     </td>
                     <td style="color:#22c55e;font-weight:700;">
                         {{ number_format($j->ca, 0, ',', ' ') }}

@@ -11,7 +11,7 @@
             <i class="fa-solid fa-clock-rotate-left text-orange-600 mr-2"></i>
             Historique des Livraisons
         </h2>
-        <p class="text-xs text-neutral-500 mt-1">{{ $date->translatedFormat('l d F Y') }}</p>
+        <p class="text-xs text-neutral-500 mt-1">{{ $date->isoFormat('dddd DD MMMM YYYY') }}</p>
     </div>
 
     <div class="flex items-center gap-2">
