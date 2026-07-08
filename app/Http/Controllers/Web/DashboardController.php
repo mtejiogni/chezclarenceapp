@@ -326,6 +326,10 @@ class DashboardController extends Controller
         ));
     }
 
+
+
+
+
     // =========================================================
     // DASHBOARD CAISSIER
     // =========================================================
@@ -360,8 +364,6 @@ class DashboardController extends Controller
             : 0;
 
         // ── Répartition par type pour le graphique de la pane Caisse
-        // Manquait ici alors que la vue l'utilise pour TOUT rôle voyant
-        // cette pane (Administrateur ET Caissier).
         $repartition = Commande::whereDate('datecommande', $today)
             ->whereNull('void')
             ->select('typecommande', DB::raw('COUNT(*) as total'))
@@ -375,6 +377,14 @@ class DashboardController extends Controller
             'Livraison'  => $repartition['Livraison']  ?? 0,
         ];
 
+        $dernieresCommandes = $commandesEncaissees
+            ->concat($aEncaisser)
+            ->sortByDesc('created_at')
+            ->take(8)
+            ->values();
+
+        $commandesEnAttente = $aEncaisser->where('statut_courant', 'En attente')->values();
+
         return view('dashboard.index', compact(
             'commandesEncaissees',
             'totalCaisse',
@@ -382,9 +392,15 @@ class DashboardController extends Controller
             'aEncaisser',
             'panierMoyen',
             'dataRepartition',
+            'dernieresCommandes',
+            'commandesEnAttente',
             'today'
         ));
     }
+
+
+
+
 
     // =========================================================
     // DASHBOARD SERVEUR
@@ -421,11 +437,14 @@ class DashboardController extends Controller
             ->orderBy('created_at')
             ->get();
 
+        $dernieresCommandes = $mesCommandes->take(8)->values();
+
         return view('dashboard.index', compact(
             'tables',
             'mesCommandes',
             'commandesEnAttente',
             'commandesPrêtes',
+            'dernieresCommandes',
             'today'
         ));
     }
@@ -547,11 +566,6 @@ class DashboardController extends Controller
             ->orderBy('intitule')
             ->get()
             ->map(function ($table) {
-                // [MODIFIÉ] une table peut désormais accueillir plusieurs
-                // commandes actives simultanément (plusieurs convives sur
-                // la même table) — on ne prend donc plus seulement la
-                // dernière commande, mais on agrège toutes les commandes
-                // actives de cette table.
                 $commandesActives = Commande::where('idtable', $table->idtable)
                     ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
                     ->whereNull('void')

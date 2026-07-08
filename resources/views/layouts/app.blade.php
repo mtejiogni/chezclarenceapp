@@ -417,27 +417,79 @@
                 </span>
 
                 {{-- Notif --}}
-                <div style="position:relative;">
-                    <button onclick="showNotifications()"
+                <div style="position:relative;" id="notif-wrap">
+                    <button onclick="toggleNotifPanel()" id="notif-btn"
                             style="width:36px; height:36px; border-radius:10px; border:1px solid #1f1f1f;
                                    background:#141414; color:#555; cursor:pointer; transition:all .18s;
-                                   display:flex; align-items:center; justify-content:center;"
+                                   display:flex; align-items:center; justify-content:center; position:relative;"
                             onmouseover="this.style.color='#f97316'; this.style.borderColor='rgba(234,88,12,.3)'"
                             onmouseout="this.style.color='#555'; this.style.borderColor='#1f1f1f'">
                         <i class="fa-solid fa-bell" style="font-size:13px;"></i>
                     </button>
+
+                    {{-- Badge : valeur initiale au chargement de la page,
+                         puis tenue à jour par le polling JS ci-dessous. --}}
                     @php
                         $nbNotifAttente = \App\Models\Commande::where('statut_courant', 'En attente')
                             ->whereNull('void')
+                            ->when(auth()->user()->role === 'Client', fn ($q) => $q->where('idclient', auth()->user()->iduser))
+                            ->when(auth()->user()->role === 'Livreur', fn ($q) => $q->where('typecommande', 'Livraison'))
                             ->count();
                     @endphp
-                    @if($nbNotifAttente > 0)
-                    <span class="absolute -top-1.5 -right-1.5 z-10 flex h-6 min-w-[26px] items-center justify-center
-                                rounded-full border-2 border-[#0d0d0d] bg-orange-600 px-1
-                                text-[14px] font-bold leading-none text-white pulse-o">
+                    <span id="notif-badge"
+                          class="absolute -top-1.5 -right-1.5 z-10 flex h-6 min-w-[26px] items-center justify-center
+                                 rounded-full border-2 border-[#0d0d0d] bg-orange-600 px-1
+                                 text-[14px] font-bold leading-none text-white pulse-o"
+                          style="display:{{ $nbNotifAttente > 0 ? 'flex' : 'none' }};">
                         {{ $nbNotifAttente > 9 ? '9+' : $nbNotifAttente }}
                     </span>
-                    @endif
+
+                    {{-- Panneau déroulant --}}
+                    <div id="notif-panel"
+                         style="display:none; position:absolute; top:46px; right:0; width:340px; max-width:90vw;
+                                background:#141414; border:1px solid #1f1f1f; border-radius:14px;
+                                box-shadow:0 20px 50px rgba(0,0,0,.5); z-index:100; overflow:hidden;">
+
+                        <div style="padding:14px 16px; border-bottom:1px solid #1f1f1f;
+                                    display:flex; align-items:center; justify-content:space-between;">
+                            <span style="font-size:13px; font-weight:700; color:#e5e5e5;">
+                                <i class="fa-solid fa-clock" style="color:#eab308; margin-right:7px;"></i>
+                                Commandes en attente
+                            </span>
+                            <span id="notif-timestamp" style="font-size:10px; color:#444;"></span>
+                        </div>
+
+                        <div id="notif-list" style="max-height:360px; overflow-y:auto;">
+                            <div style="text-align:center; padding:24px; color:#333; font-size:12px;">
+                                Chargement...
+                            </div>
+                        </div>
+
+                        @php $roleNotif = auth()->user()->role; @endphp
+
+                        @if(in_array($roleNotif, ['Administrateur','Caissier','Serveur']))
+                        <div style="padding:10px 16px; border-top:1px solid #1f1f1f; text-align:center;">
+                            <a href="{{ route('commandes.index') }}?statut=En+attente"
+                               style="font-size:11.5px; color:#f97316; text-decoration:none; font-weight:600;">
+                                Voir toutes les commandes en attente
+                            </a>
+                        </div>
+                        @elseif($roleNotif === 'Cuisinier')
+                        <div style="padding:10px 16px; border-top:1px solid #1f1f1f; text-align:center;">
+                            <a href="{{ route('cuisine.index') }}"
+                               style="font-size:11.5px; color:#f97316; text-decoration:none; font-weight:600;">
+                                Aller à l'écran Cuisine
+                            </a>
+                        </div>
+                        @elseif($roleNotif === 'Livreur')
+                        <div style="padding:10px 16px; border-top:1px solid #1f1f1f; text-align:center;">
+                            <a href="{{ route('livraisons.index') }}"
+                               style="font-size:11.5px; color:#f97316; text-decoration:none; font-weight:600;">
+                                Aller au suivi des livraisons
+                            </a>
+                        </div>
+                        @endif
+                    </div>
                 </div>
 
                 {{-- Déconnexion --}}
@@ -539,41 +591,195 @@ function confirmLogout() {
 }
 
 // ── Notifications ────────────────────────────────────────────
-function showNotifications() {
-    fetch('{{ route("dashboard.refresh") }}', {
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
+// ══════════════════════════════════════════════════════════════
+// NOTIFICATIONS — panneau déroulant asynchrone (commandes en attente)
+// ══════════════════════════════════════════════════════════════
+
+const userRole          = '{{ auth()->user()->role }}';
+const NOTIF_ROUTE        = '{{ route("notifications.commandes-en-attente") }}';
+const ROUTE_SHOW_TPL     = '{{ route("commandes.show", "__ID__") }}';
+const ROUTE_PRENDRE_TPL  = '{{ route("cuisine.prendre-en-charge", "__ID__") }}';
+const NOTIF_REFRESH_MS   = 30000; // 30s
+
+let notifPanelOuvert = false;
+let notifChargeUneFois = false;
+
+function toggleNotifPanel() {
+    const panel = document.getElementById('notif-panel');
+    notifPanelOuvert = !notifPanelOuvert;
+    panel.style.display = notifPanelOuvert ? 'block' : 'none';
+
+    if (notifPanelOuvert) {
+        chargerNotifications();
+    }
+}
+
+// Ferme le panneau au clic en dehors
+document.addEventListener('click', function (e) {
+    const wrap = document.getElementById('notif-wrap');
+    if (notifPanelOuvert && wrap && !wrap.contains(e.target)) {
+        notifPanelOuvert = false;
+        document.getElementById('notif-panel').style.display = 'none';
+    }
+});
+
+function iconeType(type) {
+    if (type === 'Livraison')  return 'fa-motorcycle';
+    if (type === 'A emporter') return 'fa-bag-shopping';
+    return 'fa-chair';
+}
+
+function ligneNotif(cmd) {
+    const urgent = cmd.minutes !== null && cmd.minutes >= 10;
+
+    const localisation = cmd.table
+        ? cmd.table
+        : (cmd.client ?? cmd.type_label);
+
+    // Action selon le rôle : Cuisinier/Administrateur peuvent prendre
+    // en charge directement depuis la notification ; les rôles ayant
+    // accès au module Commandes voient un lien "Voir".
+    let action = '';
+    if (['Cuisinier', 'Administrateur'].includes(userRole)) {
+        action = `<button onclick="prendreEnChargeDepuisNotif(${cmd.idcommande}, this)"
+                          style="font-size:10.5px;font-weight:700;color:#22c55e;background:rgba(34,197,94,.1);
+                                 border:1px solid rgba(34,197,94,.25);border-radius:7px;padding:4px 9px;
+                                 cursor:pointer;font-family:inherit;white-space:nowrap;">
+                      <i class="fa-solid fa-play" style="font-size:9px;"></i> Prendre en charge
+                  </button>`;
+    } else if (['Administrateur', 'Caissier', 'Serveur'].includes(userRole)) {
+        const url = ROUTE_SHOW_TPL.replace('__ID__', cmd.idcommande);
+        action = `<a href="${url}" style="font-size:10.5px;font-weight:700;color:#60a5fa;text-decoration:none;
+                                            white-space:nowrap;">
+                      <i class="fa-solid fa-eye"></i> Voir
+                  </a>`;
+    }
+
+    return `
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:12px 16px;
+                    border-bottom:1px solid #1a1a1a;" data-idcommande="${cmd.idcommande}">
+            <div style="width:34px; height:34px; border-radius:9px; flex-shrink:0; background:#1a1a1a;
+                        display:flex; align-items:center; justify-content:center; margin-top:1px;">
+                <i class="fa-solid ${iconeType(cmd.typecommande)}" style="font-size:13px; color:#eab308;"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:12.5px; font-weight:700; color:#e5e5e5;">
+                    ${cmd.reference}
+                    <span style="font-size:10px; font-weight:400; color:#555;">· ${localisation ?? ''}</span>
+                </div>
+                <div style="font-size:10.5px; color:${urgent ? '#f87171' : '#555'}; margin-top:2px;">
+                    <i class="fa-regular fa-calendar"></i> ${cmd.date ?? ''}
+                    <span style="margin:0 3px;">·</span>
+                    <i class="fa-regular fa-clock"></i> ${cmd.heure ?? ''}${cmd.minutes !== null ? ' (depuis ' + cmd.minutes + ' min)' : ''}
+                </div>
+                <div style="font-size:12px; font-weight:700; color:#f97316; margin-top:5px;">
+                    ${Math.round(cmd.montant).toLocaleString('fr-FR')} FCFA
+                </div>
+            </div>
+            ${action}
+        </div>
+    `;
+}
+
+function chargerNotifications() {
+    fetch(NOTIF_ROUTE, {
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        },
     })
     .then(r => r.json())
     .then(data => {
-        const d = data.data || {};
-        const attente = d.commandes_en_attente || 0;
-        const prep    = d.commandes_en_preparation || 0;
-        const liv     = d.livraisons_en_cours || 0;
+        if (!data.success) return;
+        notifChargeUneFois = true;
 
-        let html = '<div style="text-align:left;">';
-        if (!attente && !prep && !liv) {
-            html += '<p style="color:#555; padding:8px 0; text-align:center;">Aucune notification</p>';
-        } else {
-            if (attente) html += `<div style="padding:8px 0; border-bottom:1px solid #1f1f1f; color:#eab308; font-size:13px;"><i class="fa-solid fa-clock" style="margin-right:8px;"></i>${attente} commande(s) en attente</div>`;
-            if (prep)    html += `<div style="padding:8px 0; border-bottom:1px solid #1f1f1f; color:#60a5fa; font-size:13px;"><i class="fa-solid fa-fire-burner" style="margin-right:8px;"></i>${prep} en préparation</div>`;
-            if (liv)     html += `<div style="padding:8px 0; color:#f97316; font-size:13px;"><i class="fa-solid fa-motorcycle" style="margin-right:8px;"></i>${liv} livraison(s) en cours</div>`;
+        majBadge(data.total);
+        document.getElementById('notif-timestamp').textContent = 'màj ' + data.timestamp;
+
+        const liste = document.getElementById('notif-list');
+        if (!data.commandes.length) {
+            liste.innerHTML = `
+                <div style="text-align:center; padding:28px 16px; color:#2a2a2a;">
+                    <i class="fa-solid fa-circle-check" style="font-size:24px; display:block; margin-bottom:8px; color:#22c55e;"></i>
+                    <p style="font-size:12.5px;">Aucune commande en attente</p>
+                </div>`;
+            return;
         }
-        html += '</div>';
-
-        Swal.fire({
-            title: '<span style="color:#e5e5e5; font-size:16px;">Notifications</span>',
-            html,
-            background: '#141414',
-            color: '#e5e5e5',
-            confirmButtonColor: '#ea580c',
-            confirmButtonText: 'Fermer',
-            width: 360,
-        });
+        liste.innerHTML = data.commandes.map(ligneNotif).join('');
     })
     .catch(() => {
-        Swal.fire({ toast: true, position: 'bottom-end', icon: 'error', title: 'Erreur réseau', timer: 2000, background: '#141414', color: '#e5e5e5', showConfirmButton: false });
+        document.getElementById('notif-list').innerHTML =
+            '<div style="text-align:center; padding:20px; color:#f87171; font-size:12px;">Erreur de chargement</div>';
     });
 }
+
+function majBadge(total) {
+    const badge = document.getElementById('notif-badge');
+    badge.style.display = total > 0 ? 'flex' : 'none';
+    badge.textContent = total > 9 ? '9+' : total;
+}
+
+// ── Prendre en charge directement depuis la notification ────────
+function prendreEnChargeDepuisNotif(idcommande, btn) {
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    fetch(ROUTE_PRENDRE_TPL.replace('__ID__', idcommande), {
+        method: 'PATCH',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        },
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            Swal.fire({
+                toast: true, position: 'bottom-end', icon: 'error',
+                title: data.message || 'Action impossible', timer: 2500, showConfirmButton: false,
+                background: '#141414', color: '#e5e5e5', iconColor: '#ef4444',
+            });
+            btn.disabled = false;
+            btn.innerHTML = original;
+            return;
+        }
+
+        Swal.fire({
+            toast: true, position: 'bottom-end', icon: 'success',
+            title: 'Commande prise en charge', timer: 1800, showConfirmButton: false,
+            background: '#141414', color: '#e5e5e5', iconColor: '#22c55e',
+        });
+
+        chargerNotifications();
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    });
+}
+
+// ── Rafraîchissement périodique du badge (même panneau fermé) ──
+setInterval(() => {
+    // Si le panneau est ouvert, on recharge tout (liste + badge).
+    // Sinon on se contente d'une requête légère pour tenir le badge à jour.
+    if (notifPanelOuvert) {
+        chargerNotifications();
+    } else {
+        fetch(NOTIF_ROUTE, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+        })
+        .then(r => r.json())
+        .then(data => { if (data.success) majBadge(data.total); })
+        .catch(() => {});
+    }
+}, NOTIF_REFRESH_MS);
 
 // ── Confirmation suppression globale ────────────────────────
 document.addEventListener('click', function(e) {

@@ -70,20 +70,30 @@ Route::post('/deconnexion', [AuthController::class, 'logout'])
 // =========================================================
 Route::middleware(['auth', 'statut'])->group(function () {
 
-    Route::get('/dashboard', [DashboardController::class, 'index'])
+    Route::get('/dashboard', 
+        [DashboardController::class, 'index'])
         ->name('dashboard');
 
-    Route::get('/dashboard/refresh', [DashboardController::class, 'refresh'])
+    Route::get('/dashboard/refresh', 
+        [DashboardController::class, 'refresh'])
         ->name('dashboard.refresh');
 
-    Route::get('/profil', [AuthController::class, 'profil'])
+    Route::get('/profil', 
+        [AuthController::class, 'profil'])
         ->name('profil');
 
-    Route::put('/profil', [AuthController::class, 'updateProfil'])
+    Route::put('/profil', 
+        [AuthController::class, 'updateProfil'])
         ->name('profil.update');
 
-    Route::put('/profil/password', [AuthController::class, 'updatePassword'])
+    Route::put('/profil/password', 
+        [AuthController::class, 'updatePassword'])
         ->name('profil.password');
+
+    // -- les notifications pour les commandes en attente
+    Route::get('/notifications/commandes-en-attente',
+        [CommandeController::class, 'notificationsEnAttente'])
+        ->name('notifications.commandes-en-attente');
 
 
     // =========================================================

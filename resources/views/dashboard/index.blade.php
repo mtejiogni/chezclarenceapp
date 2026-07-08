@@ -99,11 +99,16 @@
         @if(in_array(auth()->user()->role, ['Administrateur','Caissier','Serveur']))
         <button class="dash-tab" onclick="showPane('commandes',this)">
             <i class="fa-solid fa-receipt"></i>Commandes
+            @php
+                $nbBadgeCommandes = is_integer($commandesEnAttente ?? null)
+                    ? ($commandesEnAttente ?? 0)
+                    : (is_countable($commandesEnAttente ?? []) ? count($commandesEnAttente ?? []) : 0);
+            @endphp
             <span id="badge-commandes"
                   style="margin-left:auto;background:rgba(234,88,12,.2);color:#f97316;
                          font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;
-                         display:{{ ($commandesEnAttente??0) > 0 ? 'inline-block' : 'none' }};">
-                {{ $commandesEnAttente ?? 0 }}
+                         display:{{ $nbBadgeCommandes > 0 ? 'inline-block' : 'none' }};">
+                {{ $nbBadgeCommandes }}
             </span>
         </button>
         @endif
@@ -176,6 +181,9 @@
         </button>
     </aside>
 
+
+
+    
     {{-- ── Contenu des panes ── --}}
     <div style="flex:1; overflow-y:auto; min-width:0;">
 
@@ -403,7 +411,15 @@
                 <h2 style="font-size:16px;font-weight:700;color:#fff;margin:0;">
                     <i class="fa-solid fa-receipt" style="color:#ea580c;margin-right:8px;"></i>Commandes
                     <br />
-                    <span style="font-size:12px;color:#444;margin:3px 0 0;">Les 08 dernières commandes</span>
+                    <span style="font-size:12px;color:#444;margin:3px 0 0;">
+                        @if(auth()->user()->role === 'Serveur')
+                            Vos 8 dernières commandes
+                        @elseif(auth()->user()->role === 'Caissier')
+                            Les 8 dernières commandes du jour
+                        @else
+                            Les 8 dernières commandes
+                        @endif
+                    </span>
                 </h2>
                 <a href="{{ route('commandes.create') }}" class="btn-cc btn-cc-primary">
                     <i class="fa-solid fa-plus"></i>Nouvelle commande

@@ -679,7 +679,84 @@ class CommandeController extends Controller
 
 
 
-    
+    // =========================================================
+    // NOTIFICATIONS — commandes en attente (cloche du layout)
+    // GET /notifications/commandes-en-attente
+    //
+    // [IMPORTANT] cette route doit être déclarée EN DEHORS du groupe
+    // ->prefix('commandes')->middleware('role:Serveur,Caissier,Administrateur')
+    // car la cloche de notification est visible par TOUS les rôles
+    // connectés (y compris Cuisinier/Livreur/Client) — la placer dans
+    // ce groupe la rendrait inaccessible à ces rôles.
+    //
+    // [PORTÉE PAR RÔLE]
+    //   - Client  : uniquement SES propres commandes en attente
+    //               (idclient = utilisateur connecté)
+    //   - Livreur : uniquement les commandes en attente de type
+    //               'Livraison' (le suivi détaillé se fait déjà dans
+    //               le module Livraison dédié — ici, simple aperçu)
+    //   - Autres rôles (Administrateur, Caissier, Serveur, Cuisinier) :
+    //               toutes les commandes en attente, comme avant.
+    // Dans tous les cas, aucune action n'est proposée pour Client et
+    // Livreur côté JS (ligneNotif() ne génère de bouton que pour
+    // Cuisinier/Administrateur/Caissier/Serveur) — ce contrôleur se
+    // contente donc de restreindre les DONNÉES visibles.
+    // =========================================================
+
+    public function notificationsEnAttente()
+    {
+        $user = Auth::user();
+
+        $base = fn () => Commande::where('statut_courant', 'En attente')
+            ->whereNull('void')
+            ->when($user->role === 'Client', fn ($q) => $q->where('idclient', $user->iduser))
+            ->when($user->role === 'Livreur', fn ($q) => $q->where('typecommande', 'Livraison'));
+
+        $total = $base()->count();
+
+        $commandes = $base()
+            ->with(['table', 'client'])
+            ->orderBy('heurecommande')
+            ->take(10)
+            ->get()
+            ->map(function ($cmd) {
+                $minutes = null;
+
+                if ($cmd->heurecommande && $cmd->datecommande) {
+                    // [CORRECTION] Carbon 3 (Laravel 11+) renvoie une valeur
+                    // SIGNÉE par défaut (négative si la date de la commande
+                    // est antérieure à maintenant — ce qui est toujours le
+                    // cas ici). Carbon 2 renvoyait une valeur absolue par
+                    // défaut. On force explicitement l'absolu pour ne plus
+                    // dépendre de cette différence de version, et on arrondit
+                    // en entier (diffInMinutes() peut renvoyer un float).
+                    $minutes = (int) round(abs(now()->diffInMinutes(
+                        \Carbon\Carbon::parse($cmd->datecommande->format('Y-m-d') . ' ' . $cmd->heurecommande)
+                    )));
+                }
+
+                return [
+                    'idcommande'   => $cmd->idcommande,
+                    'reference'    => $cmd->reference,
+                    'typecommande' => $cmd->typecommande,
+                    'type_label'   => $cmd->typecommande === 'A emporter' ? 'À emporter' : $cmd->typecommande,
+                    'table'        => $cmd->table->intitule ?? null,
+                    'client'       => $cmd->client ? trim($cmd->client->prenom . ' ' . $cmd->client->nom) : null,
+                    'date'         => $cmd->datecommande?->format('d/m/Y'),
+                    'heure'        => $cmd->heurecommande,
+                    'montant'      => (float) $cmd->montant,
+                    'minutes'      => $minutes,
+                ];
+            });
+
+        return response()->json([
+            'success'   => true,
+            'total'     => $total,
+            'commandes' => $commandes,
+            'timestamp' => now()->format('H:i:s'),
+        ]);
+    }
+
     // =========================================================
     // TABLES DISPONIBLES (AJAX)
     // =========================================================
