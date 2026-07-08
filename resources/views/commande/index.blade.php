@@ -239,9 +239,14 @@
             <option value="Livraison"  {{ request('type')==='Livraison'  ? 'selected':'' }}>Livraison</option>
         </select>
 
-        {{-- Filtre date --}}
-        <input type="date" name="date" value="{{ request('date', today()->format('Y-m-d')) }}"
-               class="sel" onchange="this.form.submit()" style="color:#e5e5e5;">
+        {{-- Filtre plage de dates --}}
+        <div style="display:flex;align-items:center;gap:6px;">
+            <input type="date" name="date_debut" value="{{ $dateDebut }}"
+                   class="sel" onchange="this.form.submit()" style="color:#e5e5e5;" title="Du">
+            <span style="color:#333;font-size:12px;">→</span>
+            <input type="date" name="date_fin" value="{{ $dateFin }}"
+                   class="sel" onchange="this.form.submit()" style="color:#e5e5e5;" title="Au">
+        </div>
 
         {{-- Filtre table --}}
         <select name="table" class="sel" onchange="this.form.submit()">
@@ -255,7 +260,7 @@
         </select>
 
         {{-- Reset --}}
-        @if(request()->hasAny(['q','statut','type','date','table']))
+        @if(request()->hasAny(['q','statut','type','date_debut','date_fin','table']))
         <a href="{{ route('commandes.index') }}" class="btn btn-ghost btn-sm">
             <i class="fa-solid fa-xmark"></i> Réinitialiser
         </a>

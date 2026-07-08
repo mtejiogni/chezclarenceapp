@@ -213,16 +213,16 @@
         {{-- Icône centrale --}}
         <div style="width:56px;height:56px;border-radius:14px;flex-shrink:0;
                     display:flex;align-items:center;justify-content:center;
-                    background:{{ $commandeActive ? 'rgba(234,88,12,.12)' : 'rgba(34,197,94,.1)' }};
-                    border:1px solid {{ $commandeActive ? 'rgba(234,88,12,.25)' : 'rgba(34,197,94,.2)' }};
+                    background:{{ $commandesActives->isNotEmpty() ? 'rgba(234,88,12,.12)' : 'rgba(34,197,94,.1)' }};
+                    border:1px solid {{ $commandesActives->isNotEmpty() ? 'rgba(234,88,12,.25)' : 'rgba(34,197,94,.2)' }};
                     position:relative;">
             <i class="fa-solid fa-chair"
-               style="font-size:22px;color:{{ $commandeActive ? '#f97316' : '#22c55e' }};"></i>
+               style="font-size:22px;color:{{ $commandesActives->isNotEmpty() ? '#f97316' : '#22c55e' }};"></i>
             {{-- Point animé --}}
             <div style="width:10px;height:10px;border-radius:50%;
                         position:absolute;top:-3px;right:-3px;
                         border:2px solid #080808;"
-                 class="{{ $commandeActive ? 'dot-occupee' : 'dot-libre' }}"></div>
+                 class="{{ $commandesActives->isNotEmpty() ? 'dot-occupee' : 'dot-libre' }}"></div>
         </div>
 
         <div>
@@ -230,10 +230,10 @@
                 {{ $table->intitule }}
             </h1>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span class="badge {{ $commandeActive ? 'badge-occupee' : 'badge-libre' }}">
-                    <i class="fa-solid {{ $commandeActive ? 'fa-utensils' : 'fa-circle-check' }}"
+                <span class="badge {{ $commandesActives->isNotEmpty() ? 'badge-occupee' : 'badge-libre' }}">
+                    <i class="fa-solid {{ $commandesActives->isNotEmpty() ? 'fa-utensils' : 'fa-circle-check' }}"
                        style="font-size:9px;"></i>
-                    {{ $commandeActive ? 'Occupée' : 'Libre' }}
+                    {{ $commandesActives->isNotEmpty() ? 'Occupée' : 'Libre' }}
                 </span>
                 @if($table->description)
                 <span style="font-size:11px;color:#444;">{{ $table->description }}</span>
@@ -245,8 +245,8 @@
     {{-- Actions --}}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
 
-        {{-- Nouvelle commande (table libre) --}}
-        @if(!$commandeActive && in_array(auth()->user()->role, ['Administrateur','Caissier','Serveur']))
+        {{-- Nouvelle commande (toujours possible, même si occupée) --}}
+        @if(in_array(auth()->user()->role, ['Administrateur','Caissier','Serveur']))
         <a href="{{ route('commandes.create') }}?table={{ $table->idtable }}"
            class="btn btn-success btn-sm">
             <i class="fa-solid fa-plus"></i>
@@ -254,17 +254,17 @@
         </a>
         @endif
 
-        {{-- Voir commande active --}}
-        @if($commandeActive)
-        <a href="{{ route('commandes.show', $commandeActive->idcommande) }}"
+        {{-- Voir les commandes actives --}}
+        @if($commandesActives->isNotEmpty())
+        <a href="{{ route('commandes.index') }}?table={{ $table->idtable }}"
            class="btn btn-primary btn-sm">
             <i class="fa-solid fa-receipt"></i>
-            Voir la commande
+            Voir les commandes ({{ $commandesActives->count() }})
         </a>
         @endif
 
         {{-- Libérer (Admin) --}}
-        @if($commandeActive && auth()->user()->role === 'Administrateur')
+        @if($commandesActives->isNotEmpty() && auth()->user()->role === 'Administrateur')
         <button onclick="libererTable()"
                 class="btn btn-sm"
                 style="background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.2);color:#eab308;">
@@ -281,7 +281,7 @@
         </a>
 
         {{-- Supprimer --}}
-        @if(!$commandeActive)
+        @if($commandesActives->isEmpty())
         <button onclick="confirmerSuppression()"
                 class="btn btn-danger btn-sm">
             <i class="fa-solid fa-trash"></i>
@@ -367,26 +367,30 @@
     ════════════════════════════ --}}
     <div style="display:flex;flex-direction:column;gap:16px;">
 
-        {{-- ── Commande active en cours ── --}}
-        @if($commandeActive)
+        {{-- ── Commandes actives en cours ── --}}
+        @if($commandesActives->isNotEmpty())
         <div class="card">
             <div class="card-header">
                 <div class="card-header-title">
                     <i class="fa-solid fa-fire-burner" style="color:var(--cc-orange);"></i>
-                    Commande en cours
+                    Commandes en cours
                     <span style="font-size:11px;font-weight:400;color:#444;">
-                        ({{ $commandeActive->reference }})
+                        ({{ $commandesActives->count() }} · {{ number_format($montantEnCoursTotal, 0, ',', ' ') }} FCFA)
                     </span>
                 </div>
-                <a href="{{ route('commandes.show', $commandeActive->idcommande) }}"
-                   class="btn btn-primary btn-sm">
-                    <i class="fa-solid fa-eye" style="font-size:10px;"></i>
-                    Détail complet
-                </a>
             </div>
-            <div class="card-body">
+            <div class="card-body" style="display:flex;flex-direction:column;gap:16px;">
 
-                <div class="commande-active-box">
+                @foreach($commandesActives as $commandeActive)
+                <div class="commande-active-box" style="{{ !$loop->last ? 'padding-bottom:16px;border-bottom:1px solid #1a1a1a;' : '' }}">
+
+                    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:10px;">
+                        <a href="{{ route('commandes.show', $commandeActive->idcommande) }}"
+                           class="btn btn-primary btn-sm">
+                            <i class="fa-solid fa-eye" style="font-size:10px;"></i>
+                            Détail complet
+                        </a>
+                    </div>
 
                     {{-- Infos commande --}}
                     <div style="display:grid;grid-template-columns:1fr 1fr;
@@ -478,6 +482,7 @@
                     </div>
                     @endif
                 </div>
+                @endforeach
             </div>
         </div>
 
@@ -620,18 +625,19 @@
                 {{-- Statut visuel --}}
                 <div style="display:flex;align-items:center;gap:12px;
                             padding:12px 14px;border-radius:10px;margin-bottom:14px;
-                            background:{{ $commandeActive ? 'rgba(234,88,12,.07)' : 'rgba(34,197,94,.06)' }};
-                            border:1px solid {{ $commandeActive ? 'rgba(234,88,12,.2)' : 'rgba(34,197,94,.15)' }};">
+                            background:{{ $commandesActives->isNotEmpty() ? 'rgba(234,88,12,.07)' : 'rgba(34,197,94,.06)' }};
+                            border:1px solid {{ $commandesActives->isNotEmpty() ? 'rgba(234,88,12,.2)' : 'rgba(34,197,94,.15)' }};">
                     <div style="width:12px;height:12px;border-radius:50%;flex-shrink:0;"
-                         class="{{ $commandeActive ? 'dot-occupee' : 'dot-libre' }}"></div>
+                         class="{{ $commandesActives->isNotEmpty() ? 'dot-occupee' : 'dot-libre' }}"></div>
                     <div>
                         <div style="font-size:13px;font-weight:700;
-                                    color:{{ $commandeActive ? '#f97316' : '#22c55e' }};">
-                            {{ $commandeActive ? 'Table occupée' : 'Table libre' }}
+                                    color:{{ $commandesActives->isNotEmpty() ? '#f97316' : '#22c55e' }};">
+                            {{ $commandesActives->isNotEmpty() ? 'Table occupée' : 'Table libre' }}
                         </div>
                         <div style="font-size:11px;color:#444;margin-top:1px;">
-                            @if($commandeActive)
-                                Commande {{ $commandeActive->reference }} en cours
+                            @if($commandesActives->isNotEmpty())
+                                {{ $commandesActives->count() }} commande{{ $commandesActives->count() > 1 ? 's' : '' }} en cours
+                                · {{ number_format($montantEnCoursTotal, 0, ',', ' ') }} FCFA
                             @else
                                 Disponible pour une nouvelle commande
                             @endif
@@ -745,7 +751,7 @@
             </div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
 
-                @if(!$commandeActive && in_array(auth()->user()->role,['Administrateur','Caissier','Serveur']))
+                @if(in_array(auth()->user()->role,['Administrateur','Caissier','Serveur']))
                 <a href="{{ route('commandes.create') }}?table={{ $table->idtable }}"
                    class="btn btn-success btn-sm" style="justify-content:flex-start;">
                     <i class="fa-solid fa-plus"></i>
@@ -753,11 +759,11 @@
                 </a>
                 @endif
 
-                @if($commandeActive)
-                <a href="{{ route('commandes.show', $commandeActive->idcommande) }}"
+                @if($commandesActives->isNotEmpty())
+                <a href="{{ route('commandes.index') }}?table={{ $table->idtable }}"
                    class="btn btn-ghost btn-sm" style="justify-content:flex-start;">
                     <i class="fa-solid fa-receipt"></i>
-                    Voir la commande active
+                    Voir les commandes actives ({{ $commandesActives->count() }})
                 </a>
                 @endif
 
@@ -767,7 +773,7 @@
                     Modifier cette table
                 </a>
 
-                @if($commandeActive && auth()->user()->role === 'Administrateur')
+                @if($commandesActives->isNotEmpty() && auth()->user()->role === 'Administrateur')
                 <div style="height:1px;background:#1a1a1a;"></div>
                 <button onclick="libererTable()"
                         class="btn btn-sm"
@@ -778,7 +784,7 @@
                 </button>
                 @endif
 
-                @if(!$commandeActive)
+                @if($commandesActives->isEmpty())
                 <div style="height:1px;background:#1a1a1a;"></div>
                 <button onclick="confirmerSuppression()"
                         class="btn btn-danger btn-sm"
@@ -804,10 +810,11 @@ function libererTable() {
         title: 'Libérer "{{ addslashes($table->intitule) }}" ?',
         html: `
             <div style="color:#666;font-size:13px;margin-bottom:8px;">
-                @if($commandeActive)
-                La commande <strong style="color:#f97316;">
-                {{ $commandeActive->reference }}</strong>
-                sera marquée comme servie.
+                @if($commandesActives->isNotEmpty())
+                <strong style="color:#f97316;">
+                {{ $commandesActives->count() }} commande{{ $commandesActives->count() > 1 ? 's' : '' }}</strong>
+                {{ $commandesActives->count() > 1 ? 'seront marquées' : 'sera marquée' }} comme servie{{ $commandesActives->count() > 1 ? 's' : '' }} :
+                {{ $commandesActives->pluck('reference')->implode(', ') }}
                 @endif
             </div>
             <div style="color:#f87171;font-size:12px;">

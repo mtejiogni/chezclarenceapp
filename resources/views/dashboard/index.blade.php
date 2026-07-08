@@ -190,7 +190,9 @@
                     <h2 style="font-size:18px;font-weight:700;color:#fff;margin:0;">
                         Bonjour, <span style="color:#f97316;">{{ auth()->user()->prenom }}</span> 👋
                     </h2>
-                    <p style="font-size:12px;color:#444;margin:3px 0 0;">Résumé de la journée en cours</p>
+                    <p style="font-size:12px;color:#444;margin:3px 0 0;">
+                        Résumé de la journée en cours
+                    </p>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#333;">
                     <span style="width:7px;height:7px;border-radius:50%;background:#22c55e;
@@ -400,6 +402,8 @@
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
                 <h2 style="font-size:16px;font-weight:700;color:#fff;margin:0;">
                     <i class="fa-solid fa-receipt" style="color:#ea580c;margin-right:8px;"></i>Commandes
+                    <br />
+                    <span style="font-size:12px;color:#444;margin:3px 0 0;">Les 08 dernières commandes</span>
                 </h2>
                 <a href="{{ route('commandes.create') }}" class="btn-cc btn-cc-primary">
                     <i class="fa-solid fa-plus"></i>Nouvelle commande
@@ -826,14 +830,17 @@
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px;">
                 @forelse($tables ?? [] as $table)
                 <div class="tcell {{ $table->occupee ? 'occupee' : 'libre' }}"
-                     onclick="tableClick({{ $table->idtable }},'{{ $table->intitule }}',{{ $table->occupee?'true':'false' }},{{ $table->montant_en_cours??0 }})">
+                     onclick="tableClick({{ $table->idtable }},'{{ $table->intitule }}',{{ $table->occupee?'true':'false' }},{{ $table->montant_total??0 }},{{ $table->nb_commandes_actives??0 }})">
                     <i class="fa-solid fa-chair" style="font-size:20px;color:{{ $table->occupee?'#f97316':'#2a2a2a' }};"></i>
                     <span style="font-size:11px;font-weight:600;color:{{ $table->occupee?'#e5e5e5':'#444' }};">
                         {{ $table->intitule }}
                     </span>
-                    @if($table->occupee && ($table->montant_en_cours??0)>0)
+                    @if($table->occupee && ($table->montant_total??0)>0)
                     <span style="font-size:10px;font-weight:700;color:#f97316;">
-                        {{ number_format($table->montant_en_cours,0,',',' ') }}F
+                        {{ number_format($table->montant_total,0,',',' ') }}F
+                    </span>
+                    <span style="font-size:9px;color:#888;">
+                        {{ $table->nb_commandes_actives }} commande{{ $table->nb_commandes_actives > 1 ? 's' : '' }}
                     </span>
                     @else
                     <span style="font-size:10px;color:#2a2a2a;">Libre</span>
@@ -996,16 +1003,19 @@ function filterCmd(s) {
 }
 
 // ── Tables ───────────────────────────────────────────────────
-function tableClick(id, nom, occupee, montant) {
+function tableClick(id, nom, occupee, montant, nbCommandes) {
     if (occupee) {
         Swal.fire({
             title: nom,
-            html: `<div style="color:#888;font-size:13px;margin-bottom:10px;">Table occupée</div>
+            html: `<div style="color:#888;font-size:13px;margin-bottom:10px;">
+                       Table occupée · ${nbCommandes} commande${nbCommandes > 1 ? 's' : ''} en cours
+                   </div>
                    <div style="font-size:24px;font-weight:700;color:#f97316;">
                        ${new Intl.NumberFormat('fr-FR').format(montant)} FCFA
-                   </div>`,
+                   </div>
+                   <div style="font-size:11px;color:#555;margin-top:4px;">Montant cumulé de toutes les commandes actives</div>`,
             background: '#141414', color: '#e5e5e5',
-            confirmButtonColor: '#ea580c', confirmButtonText: 'Voir la commande',
+            confirmButtonColor: '#ea580c', confirmButtonText: 'Voir les commandes',
             showCancelButton: true, cancelButtonText: 'Fermer', cancelButtonColor: '#1f1f1f',
         }).then(r => { if (r.isConfirmed) window.location.href = '/commandes?table=' + id; });
     } else {

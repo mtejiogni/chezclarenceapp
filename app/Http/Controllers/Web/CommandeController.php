@@ -37,11 +37,25 @@ class CommandeController extends Controller
             $query->where('typecommande', $request->type);
         }
 
-        if ($request->filled('date')) {
-            $query->whereDate('datecommande', $request->date);
-        } else {
-            $query->whereDate('datecommande', today());
+        // ── Plage de dates (par défaut : aujourd'hui à aujourd'hui) ─
+        // [AJOUT] remplace l'ancien filtre 'date' unique — permet
+        // désormais d'afficher les commandes sur plusieurs jours.
+        $dateDebut = $request->filled('date_debut')
+            ? $request->date_debut
+            : today()->format('Y-m-d');
+
+        $dateFin = $request->filled('date_fin')
+            ? $request->date_fin
+            : today()->format('Y-m-d');
+
+        // Garde-fou : si l'utilisateur inverse les deux bornes, on les
+        // permute plutôt que de renvoyer une liste vide par surprise.
+        if ($dateFin < $dateDebut) {
+            [$dateDebut, $dateFin] = [$dateFin, $dateDebut];
         }
+
+        $query->whereDate('datecommande', '>=', $dateDebut)
+              ->whereDate('datecommande', '<=', $dateFin);
 
         if ($request->filled('table')) {
             $query->where('idtable', $request->table);
@@ -74,7 +88,9 @@ class CommandeController extends Controller
             'commandes',
             'statuts',
             'tables',
-            'compteurs'
+            'compteurs',
+            'dateDebut',
+            'dateFin'
         ));
     }
 

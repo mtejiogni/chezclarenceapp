@@ -100,7 +100,7 @@
         padding: 8px;
     }
 
-    .table-btn:hover:not(.occupee) {
+    .table-btn:hover {
         border-color: var(--cc-orange);
         background: rgba(234,88,12,.06);
     }
@@ -108,7 +108,11 @@
     .table-btn.occupee {
         border-color: #ef4444;
         background: rgba(239,68,68,.05);
-        cursor: not-allowed; opacity: .6;
+        /* [MODIFIÉ] une table occupée reste sélectionnable : plusieurs
+           commandes/convives peuvent se succéder ou cohabiter sur la
+           même table. On garde juste une légère atténuation visuelle
+           pour la distinguer d'une table libre, sans bloquer le clic. */
+        opacity: .85;
     }
 
     .table-btn.selected {
@@ -475,7 +479,7 @@
                     Choisir une table
                 </h3>
                 <p style="font-size:12px;color:#444;margin:3px 0 0;">
-                    Cliquez sur une table disponible
+                    Cliquez sur une table pour la sélectionner
                 </p>
             </div>
             <div style="display:flex;gap:10px;font-size:11px;color:#444;align-items:center;">
@@ -495,13 +499,12 @@
         <div class="table-grid">
             @foreach($tables as $table)
             <button type="button"
-                    @click="{{ !$table->occupee ? "choisirTable({$table->idtable}, '{$table->intitule}')" : '' }}"
+                    @click="choisirTable({{ $table->idtable }}, '{{ $table->intitule }}')"
                     :class="{
                         'selected': tableId === {{ $table->idtable }},
                         'occupee':  {{ $table->occupee ? 'true' : 'false' }}
                     }"
                     class="table-btn"
-                    {{ $table->occupee && !isset($commande) ? 'disabled' : '' }}
                     style="position:relative;">
 
                 <span class="table-dot"

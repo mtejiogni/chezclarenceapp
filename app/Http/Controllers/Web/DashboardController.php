@@ -164,7 +164,8 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
-        // ── Dernières commandes ───────────────────────────────
+        // ── Données pour l'onglet Commandes ──────────────────
+        // ── Les 08 Dernières commandes peu importe le jour
 
         $dernieresCommandes = Commande::with(['client', 'table', 'serveur'])
             ->whereNull('void')
@@ -183,9 +184,6 @@ class DashboardController extends Controller
             : ($caJour > 0 ? 100 : 0);
 
         // ── Données pour l'onglet Caisse ──────────────────
-        // Même bug que Cuisine/Livraisons/Tables/Stats : ces variables
-        // n'existaient que dans dashboardCaissier(), jamais ici, alors
-        // que l'Administrateur voit aussi l'onglet Caisse.
         $commandesEncaissees = Commande::whereDate('datecommande', $today)
             ->whereIn('statut_courant', ['Servie', 'Livrée'])
             ->whereNull('void')
@@ -549,18 +547,22 @@ class DashboardController extends Controller
             ->orderBy('intitule')
             ->get()
             ->map(function ($table) {
-                $commandeActive = Commande::where('idtable', $table->idtable)
+                // [MODIFIÉ] une table peut désormais accueillir plusieurs
+                // commandes actives simultanément (plusieurs convives sur
+                // la même table) — on ne prend donc plus seulement la
+                // dernière commande, mais on agrège toutes les commandes
+                // actives de cette table.
+                $commandesActives = Commande::where('idtable', $table->idtable)
                     ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
                     ->whereNull('void')
                     ->with('lignes')
-                    ->latest()
-                    ->first();
+                    ->orderByDesc('created_at')
+                    ->get();
 
-                $table->occupee          = (bool) $commandeActive;
-                $table->commande_active   = $commandeActive;
-                $table->montant_en_cours  = $commandeActive
-                    ? $commandeActive->montant
-                    : 0;
+                $table->occupee              = $commandesActives->isNotEmpty();
+                $table->commandes_actives    = $commandesActives;
+                $table->nb_commandes_actives = $commandesActives->count();
+                $table->montant_total        = $commandesActives->sum('montant');
 
                 return $table;
             });

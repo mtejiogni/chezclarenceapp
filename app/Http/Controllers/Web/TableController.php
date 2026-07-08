@@ -29,27 +29,53 @@ class TableController extends Controller
         // Toutes les tables avec statut en temps réel
         $tables = $query->get()->map(function ($table) {
 
-            // Commande active sur cette table
-            $commandeActive = Commande::where('idtable', $table->idtable)
+            // [MODIFIÉ] une table peut désormais porter plusieurs
+            // commandes actives simultanément (plusieurs convives sur
+            // la même table) — on agrège donc toutes les commandes
+            // actives au lieu de ne prendre que la dernière.
+            $commandesActives = Commande::where('idtable', $table->idtable)
                 ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
                 ->whereNull('void')
                 ->with(['lignes', 'serveur'])
-                ->latest()
-                ->first();
+                ->orderByDesc('created_at')
+                ->get();
 
-            $table->occupee          = (bool) $commandeActive;
-            $table->commande_active  = $commandeActive;
-            $table->montant_en_cours = $commandeActive ? $commandeActive->montant : 0;
-            $table->reference_active = $commandeActive ? $commandeActive->reference : null;
-            $table->statut_commande  = $commandeActive ? $commandeActive->statut_courant : null;
+            $derniere = $commandesActives->first();
+
+            $table->occupee              = $commandesActives->isNotEmpty();
+            $table->commandes_actives    = $commandesActives;
+            $table->nb_commandes_actives = $commandesActives->count();
+            $table->montant_total        = $commandesActives->sum('montant');
+            // Conservés pour affichage compact (référence/statut de la
+            // commande la plus récente) dans les listes qui n'ont la
+            // place que pour une seule ligne d'info.
+            $table->reference_active     = $derniere?->reference;
+            $table->statut_commande      = $derniere?->statut_courant;
 
             return $table;
         });
 
-        // Compteurs globaux
+        // Compteurs globaux (calculés AVANT le filtre statut, pour que
+        // les badges "Libre (N)"/"Occupée (N)" restent justes même
+        // quand un filtre est actif)
         $totalTables    = $tables->count();
         $tablesOccupees = $tables->where('occupee', true)->count();
         $tablesLibres   = $totalTables - $tablesOccupees;
+
+        // [CORRECTION] le filtre 'statut' (libre/occupee) envoyé par les
+        // boutons de la vue n'était jusqu'ici jamais lu ni appliqué par
+        // le contrôleur — les boutons soumettaient bien le formulaire,
+        // mais la liste affichée restait toujours complète. 'occupee'
+        // étant une valeur calculée (pas une colonne SQL), le filtre
+        // doit s'appliquer sur la collection après le map() ci-dessus,
+        // et non via ->where() sur la requête Eloquent.
+        if ($request->filled('statut')) {
+            $tables = $tables->filter(function ($table) use ($request) {
+                return $request->statut === 'libre'
+                    ? !$table->occupee
+                    : $table->occupee;
+            })->values();
+        }
 
         // CA en cours (commandes actives non encore encaissées)
         $caEnCours = Commande::whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
@@ -146,13 +172,16 @@ class TableController extends Controller
             abort(404);
         }
 
-        // Commande active en cours sur cette table
-        $commandeActive = Commande::where('idtable', $table->idtable)
+        // [MODIFIÉ] toutes les commandes actives de cette table (une
+        // table peut désormais en porter plusieurs simultanément)
+        $commandesActives = Commande::where('idtable', $table->idtable)
             ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
             ->whereNull('void')
             ->with(['lignes.menu', 'serveur'])
-            ->latest()
-            ->first();
+            ->orderByDesc('created_at')
+            ->get();
+
+        $montantEnCoursTotal = $commandesActives->sum('montant');
 
         // Historique des commandes de cette table (30 derniers jours)
         $historique = Commande::where('idtable', $table->idtable)
@@ -186,7 +215,8 @@ class TableController extends Controller
 
         return view('table.show', compact(
             'table',
-            'commandeActive',
+            'commandesActives',
+            'montantEnCoursTotal',
             'historique',
             'stats'
         ));
@@ -311,21 +341,24 @@ class TableController extends Controller
             ->orderBy('intitule')
             ->get()
             ->map(function ($table) {
-                $commande = Commande::where('idtable', $table->idtable)
+                $commandesActives = Commande::where('idtable', $table->idtable)
                     ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
                     ->whereNull('void')
-                    ->latest()
-                    ->first();
+                    ->orderByDesc('created_at')
+                    ->get();
+
+                $derniere = $commandesActives->first();
 
                 return [
-                    'idtable'         => $table->idtable,
-                    'intitule'        => $table->intitule,
-                    'description'     => $table->description,
-                    'occupee'         => (bool) $commande,
-                    'reference'       => $commande?->reference,
-                    'statut_commande' => $commande?->statut_courant,
-                    'montant'         => $commande ? (float) $commande->montant : 0,
-                    'heure'           => $commande?->heurecommande,
+                    'idtable'             => $table->idtable,
+                    'intitule'            => $table->intitule,
+                    'description'         => $table->description,
+                    'occupee'             => $commandesActives->isNotEmpty(),
+                    'nb_commandes'        => $commandesActives->count(),
+                    'montant_total'       => (float) $commandesActives->sum('montant'),
+                    'reference'           => $derniere?->reference,
+                    'statut_commande'     => $derniere?->statut_courant,
+                    'heure'               => $derniere?->heurecommande,
                 ];
             });
 
@@ -355,29 +388,35 @@ class TableController extends Controller
             abort(403);
         }
 
-        // Récupérer la commande active
-        $commande = Commande::where('idtable', $table->idtable)
+        // [MODIFIÉ] une table peut porter plusieurs commandes actives :
+        // il faut toutes les solder, sinon la table resterait affichée
+        // comme occupée juste après avoir été "libérée".
+        $commandesActives = Commande::where('idtable', $table->idtable)
             ->whereNotIn('statut_courant', ['Servie', 'Livrée', 'Annulée'])
             ->whereNull('void')
-            ->latest()
-            ->first();
+            ->get();
 
-        if (!$commande) {
+        if ($commandesActives->isEmpty()) {
             return back()->with('error', 'Aucune commande active sur cette table.');
         }
 
         DB::beginTransaction();
 
         try {
-            $commande->update([
-                'statut_courant' => 'Servie',
-                'void'           => null,
-            ]);
+            $references = $commandesActives->pluck('reference')->implode(', ');
+
+            foreach ($commandesActives as $commande) {
+                $commande->update([
+                    'statut_courant' => 'Servie',
+                    'void'           => null,
+                ]);
+            }
 
             Log::warning('Table libérée manuellement par Admin', [
-                'table'     => $table->intitule,
-                'commande'  => $commande->reference,
-                'admin'     => Auth::user()->email,
+                'table'      => $table->intitule,
+                'commandes'  => $references,
+                'nb'         => $commandesActives->count(),
+                'admin'      => Auth::user()->email,
             ]);
 
             DB::commit();

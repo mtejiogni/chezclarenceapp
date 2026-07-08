@@ -405,8 +405,8 @@
                 style="padding:7px 14px;border-radius:20px;font-size:11px;
                        font-weight:500;cursor:pointer;transition:all .18s;
                        border:1px solid #1f1f1f;font-family:inherit;
-                       background:{{ !request('statut') && !$s ? '#ea580c' : '#141414' }};
-                       color:{{ !request('statut') && !$s ? '#fff' : '#555' }};">
+                       background:{{ request('statut', '') === $s ? '#ea580c' : '#141414' }};
+                       color:{{ request('statut', '') === $s ? '#fff' : '#555' }};">
             @if($s === '') Toutes
             @elseif($s === 'libre') 🟢 Libres
             @else 🟠 Occupées
@@ -484,11 +484,11 @@
         <div style="text-align:center;">
             @if($table->occupee)
             <div style="font-size:14px;font-weight:700;color:#f97316;margin-bottom:3px;">
-                {{ number_format($table->montant_en_cours, 0, ',', ' ') }} FCFA
+                {{ number_format($table->montant_total, 0, ',', ' ') }} FCFA
             </div>
             <span class="badge badge-occupee" style="font-size:10px;">
                 <i class="fa-solid fa-circle" style="font-size:6px;"></i>
-                {{ $table->statut_commande ?? 'Occupée' }}
+                {{ $table->nb_commandes_actives }} commande{{ $table->nb_commandes_actives > 1 ? 's' : '' }}
             </span>
             @else
             <span class="badge badge-libre">
@@ -519,8 +519,8 @@
                 <i class="fa-solid fa-pen-to-square" style="font-size:10px;"></i>
             </button>
 
-            {{-- Nouvelle commande (table libre) --}}
-            @if(!$table->occupee && in_array(auth()->user()->role, ['Administrateur','Caissier','Serveur']))
+            {{-- Nouvelle commande (toujours possible, même si occupée) --}}
+            @if(in_array(auth()->user()->role, ['Administrateur','Caissier','Serveur']))
             <a href="{{ route('commandes.create') }}?table={{ $table->idtable }}"
                class="btn btn-success btn-sm"
                title="Nouvelle commande sur cette table">
@@ -533,7 +533,7 @@
             <button onclick="libererTable(
                         {{ $table->idtable }},
                         '{{ addslashes($table->intitule) }}',
-                        '{{ $table->reference_active }}'
+                        {{ $table->nb_commandes_actives ?? 0 }}
                     )"
                     class="btn btn-sm"
                     style="background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.2);
@@ -601,22 +601,22 @@
                 <span style="font-size:11px;color:#444;">{{ $table->description }}</span>
                 @endif
             </div>
-            @if($table->occupee && $table->reference_active)
+            @if($table->occupee && $table->nb_commandes_actives > 0)
             <div style="font-size:11px;color:#f97316;margin-top:1px;">
                 <i class="fa-solid fa-receipt" style="margin-right:3px;"></i>
-                Commande : {{ $table->reference_active }}
-                @if($table->statut_commande)
-                · {{ $table->statut_commande }}
+                {{ $table->nb_commandes_actives }} commande{{ $table->nb_commandes_actives > 1 ? 's' : '' }} en cours
+                @if($table->reference_active)
+                · dernière : {{ $table->reference_active }}
                 @endif
             </div>
             @endif
         </div>
 
         {{-- Montant (si occupée) --}}
-        @if($table->occupee && $table->montant_en_cours > 0)
+        @if($table->occupee && $table->montant_total > 0)
         <div style="font-size:13px;font-weight:700;color:#f97316;
                     flex-shrink:0;text-align:right;min-width:100px;">
-            {{ number_format($table->montant_en_cours, 0, ',', ' ') }} FCFA
+            {{ number_format($table->montant_total, 0, ',', ' ') }} FCFA
         </div>
         @endif
 
@@ -641,7 +641,7 @@
                     class="btn btn-ghost btn-sm" title="Modifier">
                 <i class="fa-solid fa-pen-to-square" style="font-size:10px;"></i>
             </button>
-            @if(!$table->occupee && in_array(auth()->user()->role,['Administrateur','Caissier','Serveur']))
+            @if(in_array(auth()->user()->role,['Administrateur','Caissier','Serveur']))
             <a href="{{ route('commandes.create') }}?table={{ $table->idtable }}"
                class="btn btn-success btn-sm" title="Nouvelle commande">
                 <i class="fa-solid fa-plus" style="font-size:10px;"></i>
@@ -651,7 +651,7 @@
             <button onclick="libererTable(
                         {{ $table->idtable }},
                         '{{ addslashes($table->intitule) }}',
-                        '{{ $table->reference_active }}'
+                        {{ $table->nb_commandes_actives ?? 0 }}
                     )"
                     class="btn btn-sm"
                     style="background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.2);color:#eab308;">
@@ -1104,13 +1104,13 @@ function validerFormEdit() {
 // LIBÉRER UNE TABLE (Admin)
 // ════════════════════════════════════════════════════════════
 
-function libererTable(id, nom, reference) {
+function libererTable(id, nom, nbCommandes) {
     Swal.fire({
         title: `Libérer "${nom}" ?`,
         html: `<div style="color:#666;font-size:13px;">
-                   La commande <strong style="color:#f97316;">
-                   ${reference || 'en cours'}</strong>
-                   sera marquée comme servie.
+                   ${nbCommandes > 0
+                       ? `<strong style="color:#f97316;">${nbCommandes} commande${nbCommandes > 1 ? 's' : ''}</strong> en cours sur cette table ${nbCommandes > 1 ? 'seront marquées' : 'sera marquée'} comme servie${nbCommandes > 1 ? 's' : ''}.`
+                       : 'La commande en cours sera marquée comme servie.'}
                    <br><br>
                    <strong style="color:#f87171;">
                    Utilisez uniquement en cas de blocage.</strong>
