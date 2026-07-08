@@ -14,25 +14,6 @@ use Illuminate\Support\Facades\Log;
 
 // ══════════════════════════════════════════════════════════════
 // MODULE "MES COMMANDES" — self-service Client
-//
-// [DÉCISIONS DE CONCEPTION — à valider]
-//   - typecommande limité à 'A emporter' | 'Livraison'. Pas de
-//     'Standard' : la sélection de table reste un geste du
-//     personnel en salle (staff physiquement présent), pas un
-//     acte que le client accomplit lui-même à distance.
-//   - idclient toujours forcé à Auth::user()->iduser, jamais lu
-//     depuis la requête (même principe de sécurité que pour
-//     l'inscription publique).
-//   - iduser (personnel ayant enregistré) laissé à null : aucun
-//     membre du personnel n'intervient dans l'auto-enregistrement.
-//   - idtable toujours null (cohérent avec la restriction ci-dessus).
-//   - Modification et annulation strictement réservées au statut
-//     'En attente' + vérification de propriété (idclient) à
-//     chaque action.
-//   - Référence générée via Commande::genererReference() (méthode
-//     statique centralisée sur le modèle, format 'CMD-XXXXXX'),
-//     la même que celle utilisée par CommandeController pour les
-//     commandes enregistrées par le personnel.
 // ══════════════════════════════════════════════════════════════
 
 class ClientCommandeController extends Controller

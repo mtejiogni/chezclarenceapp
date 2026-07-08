@@ -316,7 +316,7 @@
         </a>
 
 
-        <a href="{{ route('admin.historiques.index') }}"
+        <a href="{{ route('admin.sauvegarde.index') }}"
            class="param-nav-item" style="text-decoration:none;">
             <div class="nav-ico"><i class="fa-solid fa-database"></i></div>
             Sauvegarde & Restauration

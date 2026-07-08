@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\StatistiqueController;
 use App\Http\Controllers\Web\ParametreController;
 use App\Http\Controllers\Web\CategorieController;
 use App\Http\Controllers\Web\ClientCommandeController;
+use App\Http\Controllers\Web\SauvegardeController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -231,6 +232,33 @@ Route::middleware(['auth', 'statut'])->group(function () {
         Route::delete('/historiques/{historique}', 
             [HistoriqueController::class, 'destroy'])
             ->name('historiques.destroy');
+        
+
+        // ── Sauvegarde et restauration ───────────────────────────────────
+        Route::get('/sauvegarde', 
+            [SauvegardeController::class, 'index'])
+            ->name('sauvegarde.index');
+        
+        Route::post('/sauvegarde/exporter', 
+            [SauvegardeController::class, 'exporter'])
+            ->name('sauvegarde.exporter');
+        
+        Route::get('/sauvegarde/corbeille', 
+            [SauvegardeController::class, 'elementsCorbeille'])
+            ->name('sauvegarde.corbeille');
+        
+        Route::patch('/sauvegarde/restaurer', 
+            [SauvegardeController::class, 'restaurer'])
+            ->name('sauvegarde.restaurer');
+        
+        Route::delete('/sauvegarde/supprimer', 
+            [SauvegardeController::class, 'supprimerDefinitivement'])
+            ->name('sauvegarde.supprimer');
+        
+        Route::post('/sauvegarde/vider-corbeille', 
+            [SauvegardeController::class, 'viderCorbeille'])
+            ->name('sauvegarde.vider-corbeille');
+
     });
 
 
