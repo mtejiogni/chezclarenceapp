@@ -342,24 +342,35 @@
                         <i class="fa-solid fa-list-check" style="color:#ea580c;margin-right:6px;"></i>
                         Activité récente
                     </h3>
+                    @if(auth()->user()->role !== 'Client')
                     <a href="{{ route('commandes.index') }}"
                        style="font-size:11px;color:#444;text-decoration:none;transition:color .18s;"
                        onmouseover="this.style.color='#f97316'" onmouseout="this.style.color='#444'">
                         Voir tout <i class="fa-solid fa-arrow-right" style="margin-left:2px;"></i>
                     </a>
+                    @endif
                 </div>
                 <div style="display:flex;flex-direction:column;gap:8px;" id="recent-list">
                     @forelse($dernieresCommandes ?? [] as $cmd)
+                    @php
+                        $iconRecent = match($cmd->typecommande) {
+                            'Livraison'  => 'fa-motorcycle',
+                            'A emporter' => 'fa-bag-shopping',
+                            default      => 'fa-chair',
+                        };
+
+                        $dateRecent = $cmd->datecommande?->format('d/m/Y');
+
+                        $minutesAttenteRecent = null;
+                        if ($cmd->statut_courant === 'En attente' && $cmd->heurecommande && $cmd->datecommande) {
+                            $minutesAttenteRecent = (int) round(abs(now()->diffInMinutes(
+                                \Carbon\Carbon::parse($cmd->datecommande->format('Y-m-d') . ' ' . $cmd->heurecommande)
+                            )));
+                        }
+                    @endphp
                     <div class="cmd-row">
                         <div style="width:36px;height:36px;border-radius:10px;flex-shrink:0;
                                     background:#1a1a1a;display:flex;align-items:center;justify-content:center;">
-                            @php
-                                $iconRecent = match($cmd->typecommande) {
-                                    'Livraison'  => 'fa-motorcycle',
-                                    'A emporter' => 'fa-bag-shopping',
-                                    default      => 'fa-chair',
-                                };
-                            @endphp
                             <i class="fa-solid {{ $iconRecent }}"
                                style="color:#333;font-size:13px;"></i>
                         </div>
@@ -371,7 +382,12 @@
                                 @endif
                             </div>
                             <div style="font-size:11px;color:#444;margin-top:1px;">
-                                {{ $cmd->heurecommande }} · {{ $cmd->lignes->count() }} article(s)
+                                {{ $dateRecent }} · {{ $cmd->heurecommande }} · {{ $cmd->lignes->count() }} article(s)
+                                @if($minutesAttenteRecent !== null)
+                                <span style="color:{{ $minutesAttenteRecent >= 10 ? '#f87171' : '#eab308' }};font-weight:600;">
+                                    · {{ $minutesAttenteRecent }} min d'attente
+                                </span>
+                                @endif
                             </div>
                         </div>
                         <div style="text-align:right;flex-shrink:0;">
@@ -460,6 +476,15 @@
                         'A emporter' => '#22c55e',
                         default      => '#60a5fa',
                     };
+
+                    $dateCmd = $cmd->datecommande?->format('d/m/Y');
+
+                    $minutesAttente = null;
+                    if ($cmd->statut_courant === 'En attente' && $cmd->heurecommande && $cmd->datecommande) {
+                        $minutesAttente = (int) round(abs(now()->diffInMinutes(
+                            \Carbon\Carbon::parse($cmd->datecommande->format('Y-m-d') . ' ' . $cmd->heurecommande)
+                        )));
+                    }
                 @endphp
                 <div class="cmd-row cmd-item" data-s="{{ $cmd->statut_courant }}">
                     <div style="width:38px;height:38px;border-radius:10px;flex-shrink:0;
@@ -478,8 +503,15 @@
                             <span style="font-size:10px;color:#333;">{{ $cmd->typecommande === 'A emporter' ? 'À emporter' : $cmd->typecommande }}</span>
                         </div>
                         <div style="font-size:11px;color:#444;margin-top:2px;">
+                            <i class="fa-regular fa-calendar" style="margin-right:3px;"></i>{{ $dateCmd }}
+                            <span style="margin:0 2px;">·</span>
                             <i class="fa-regular fa-clock" style="margin-right:3px;"></i>{{ $cmd->heurecommande }}
                             · {{ $cmd->lignes->count() }} article(s)
+                            @if($minutesAttente !== null)
+                            <span style="color:{{ $minutesAttente >= 10 ? '#f87171' : '#eab308' }};font-weight:600;">
+                                · {{ $minutesAttente }} min d'attente
+                            </span>
+                            @endif
                         </div>
                     </div>
                     <div style="text-align:right;flex-shrink:0;">
@@ -618,9 +650,6 @@
 
                 {{-- En attente --}}
                 @php
-                    // [AJOUT] $cuisineEnAttente est la collection dédiée fournie
-                    // à l'Administrateur. $commandesEnAttente reste utilisé tel
-                    // quel pour le rôle Cuisinier (déjà une collection dans ce cas).
                     $listeCuisineAttente = $cuisineEnAttente
                         ?? (is_iterable($commandesEnAttente ?? []) && !is_integer($commandesEnAttente ?? null)
                             ? ($commandesEnAttente ?? [])
@@ -1088,20 +1117,17 @@ function refreshDash() {
         set('kpi-ca',  new Intl.NumberFormat('fr-FR').format(d.ca_jour));
         set('kpi-livraisons', d.livraisons_en_cours);
 
-        // [AJOUT] KPI Tables occupées (id existant, jamais branché jusqu'ici)
         const kpiTables = document.getElementById('kpi-tables');
         if (kpiTables && kpiTables.textContent.includes('/')) {
             const total = kpiTables.textContent.split('/')[1];
             kpiTables.textContent = d.tables_occupees + '/' + total;
         }
 
-        // [AJOUT] KPIs de l'onglet Caisse
         set('kpi-caisse-total',  new Intl.NumberFormat('fr-FR').format(d.total_caisse));
         set('kpi-caisse-nb',     d.nb_encaissees);
         const panierMoyen = d.nb_encaissees > 0 ? Math.round(d.total_caisse / d.nb_encaissees) : 0;
         set('kpi-caisse-panier', new Intl.NumberFormat('fr-FR').format(panierMoyen));
 
-        // [AJOUT] Badges des onglets sidebar
         setBadge('badge-commandes',  d.commandes_en_attente);
         setBadge('badge-cuisine',    (d.commandes_en_attente ?? 0) + (d.commandes_en_preparation ?? 0));
         setBadge('badge-livraisons', d.livraisons_en_cours);

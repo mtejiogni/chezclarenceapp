@@ -14,6 +14,7 @@ use App\Http\Controllers\Web\HistoriqueController;
 use App\Http\Controllers\Web\StatistiqueController;
 use App\Http\Controllers\Web\ParametreController;
 use App\Http\Controllers\Web\CategorieController;
+use App\Http\Controllers\Web\ClientCommandeController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -376,6 +377,52 @@ Route::middleware(['auth', 'statut'])->group(function () {
         Route::patch('/{commande}/prete',
             [CommandeController::class, 'marquerPrete'])
             ->name('prete');
+    });
+
+
+    // =========================================================
+    // MES COMMANDES - CLIENT
+    // =========================================================
+    Route::middleware('role:Client')
+        ->prefix('mes-commandes')
+        ->name('mes-commandes.')
+        ->group(function () {
+
+        Route::get('/', 
+            [ClientCommandeController::class, 'index'])
+            ->name('index');
+        
+        Route::get('/nouvelle', 
+            [ClientCommandeController::class, 'create'])
+            ->name('create');
+        
+        Route::post('/', 
+            [ClientCommandeController::class, 'store'])
+            ->name('store');
+        
+        Route::get('/menu/liste', 
+            [ClientCommandeController::class, 'menuListe'])
+            ->name('menu.liste');
+        
+        Route::get('/{commande}', 
+            [ClientCommandeController::class, 'show'])
+            ->name('show');
+        
+        Route::get('/{commande}/modifier', 
+            [ClientCommandeController::class, 'edit'])
+            ->name('edit');
+        
+        Route::put('/{commande}', 
+            [ClientCommandeController::class, 'update'])
+            ->name('update');
+        
+        Route::patch('/{commande}/annuler', 
+            [ClientCommandeController::class, 'annuler'])
+            ->name('annuler');
+        
+        Route::get('/{commande}/recommander', 
+            [ClientCommandeController::class, 'recommander'])
+            ->name('recommander');
     });
 
 });

@@ -150,7 +150,7 @@
             @forelse($commandesEnAttente as $cmd)
             @php
                 $minutes = $cmd->heurecommande
-                    ? now()->diffInMinutes(\Carbon\Carbon::parse($cmd->datecommande->format('Y-m-d') . ' ' . $cmd->heurecommande))
+                    ? (int) round(abs(now()->diffInMinutes(\Carbon\Carbon::parse($cmd->datecommande->format('Y-m-d') . ' ' . $cmd->heurecommande))))
                     : 0;
                 $urgent = $minutes >= 10;
                 $iconType = match($cmd->typecommande) {
@@ -219,7 +219,7 @@
             @forelse($enPreparation as $cmd)
             @php
                 $minutes = $cmd->heurecommande
-                    ? now()->diffInMinutes(\Carbon\Carbon::parse($cmd->datecommande->format('Y-m-d') . ' ' . $cmd->heurecommande))
+                    ? (int) round(abs(now()->diffInMinutes(\Carbon\Carbon::parse($cmd->datecommande->format('Y-m-d') . ' ' . $cmd->heurecommande))))
                     : 0;
                 $urgent = $minutes >= 15;
                 $iconType = match($cmd->typecommande) {

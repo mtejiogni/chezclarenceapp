@@ -258,6 +258,30 @@
                 <span class="sb-label">Tableau de bord</span>
             </a>
 
+
+
+            @if(in_array(auth()->user()->role, ['Client']))
+            @php
+                $nbAttenteClient = \App\Models\Commande::where('statut_courant', 'En attente')
+                    ->where('idclient', auth()->user()->iduser)
+                    ->whereNull('void')
+                    ->count();
+            @endphp
+            <a href="{{ route('mes-commandes.index') }}"
+               class="sb-link {{ request()->routeIs('mes-commandes.*') ? 'active' : '' }}">
+                <i class="fa-solid fa-receipt"></i>
+                <span class="sb-label">Mes Commandes</span>
+                @if($nbAttenteClient > 0)
+                <span class="sb-badge" style="margin-left:auto; background:rgba(234,88,12,.2);
+                      color:#f97316; font-size:10px; padding:1px 7px; border-radius:10px; font-weight:700;">
+                    {{ $nbAttenteClient }}
+                </span>
+                @endif
+            </a>
+            @endif
+
+
+
             @if(in_array(auth()->user()->role, ['Administrateur','Caissier','Serveur']))
             <a href="{{ route('commandes.index') }}"
                class="sb-link {{ request()->routeIs('commandes.*') ? 'active' : '' }}">
@@ -695,7 +719,7 @@ function chargerNotifications() {
         notifChargeUneFois = true;
 
         majBadge(data.total);
-        document.getElementById('notif-timestamp').textContent = 'màj ' + data.timestamp;
+        document.getElementById('notif-timestamp').textContent = 'mise à jour à ' + data.timestamp;
 
         const liste = document.getElementById('notif-list');
         if (!data.commandes.length) {

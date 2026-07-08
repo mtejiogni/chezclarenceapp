@@ -26,6 +26,7 @@ class DashboardController extends Controller
             'Serveur'        => $this->dashboardServeur(),
             'Cuisinier'      => $this->dashboardCuisinier(),
             'Livreur'        => $this->dashboardLivreur(),
+            'Client'         => $this->dashboardClient(),
             default          => $this->dashboardDefault(),
         };
     }
@@ -583,7 +584,53 @@ class DashboardController extends Controller
     }
 
     // =========================================================
-    // DASHBOARD PAR DEFAUT (Client ou rôle inconnu)
+    // DASHBOARD CLIENT
+    // =========================================================
+
+    private function dashboardClient()
+    {
+        $user  = Auth::user();
+        $today = Carbon::today();
+        $hier  = Carbon::yesterday();
+
+        $commandesDuJour = Commande::where('idclient', $user->iduser)
+            ->whereDate('datecommande', $today)
+            ->whereNull('void')
+            ->count();
+
+        $commandesHier = Commande::where('idclient', $user->iduser)
+            ->whereDate('datecommande', $hier)
+            ->whereNull('void')
+            ->count();
+
+        $evolutionCommandes = $commandesHier > 0
+            ? round((($commandesDuJour - $commandesHier) / $commandesHier) * 100, 1)
+            : ($commandesDuJour > 0 ? 100 : 0);
+
+        // Collection (pas un entier) — cohérent avec le fonctionnement
+        // déjà en place pour Serveur/Cuisinier sur cette même variable.
+        $commandesEnAttente = Commande::where('idclient', $user->iduser)
+            ->where('statut_courant', 'En attente')
+            ->whereNull('void')
+            ->get();
+
+        $dernieresCommandes = Commande::where('idclient', $user->iduser)
+            ->with('table')
+            ->whereNull('void')
+            ->orderByDesc('created_at')
+            ->take(8)
+            ->get();
+
+        return view('dashboard.index', compact(
+            'commandesDuJour',
+            'evolutionCommandes',
+            'commandesEnAttente',
+            'dernieresCommandes'
+        ));
+    }
+
+    // =========================================================
+    // DASHBOARD PAR DEFAUT (rôle inconnu)
     // =========================================================
 
     private function dashboardDefault()
@@ -600,15 +647,26 @@ class DashboardController extends Controller
     public function refresh()
     {
         $today = Carbon::today();
+        $user  = Auth::user();
+
+        // [CORRECTION] Sans ce scope, le polling JS (setInterval toutes
+        // les 30s) écrasait les KPI "Commandes du jour"/"En attente"
+        // du Client — correctement filtrés à l'affichage initial via
+        // dashboardClient() — par les chiffres globaux du restaurant
+        // entier quelques secondes après le chargement de la page.
+        $baseCommandesUser = fn () => Commande::query()
+            ->when($user->role === 'Client', fn ($q) => $q->where('idclient', $user->iduser));
 
         $data = [
-            'commandes_en_attente'    => Commande::where('statut_courant', 'En attente')
+            'commandes_en_attente'    => $baseCommandesUser()
+                ->where('statut_courant', 'En attente')
                 ->whereNull('void')->count(),
 
             'commandes_en_preparation' => Commande::where('statut_courant', 'En préparation')
                 ->whereNull('void')->count(),
 
-            'nb_commandes_jour'       => Commande::whereDate('datecommande', $today)
+            'nb_commandes_jour'       => $baseCommandesUser()
+                ->whereDate('datecommande', $today)
                 ->whereNull('void')->count(),
 
             'livraisons_en_cours'     => Commande::where('typecommande', 'Livraison')
