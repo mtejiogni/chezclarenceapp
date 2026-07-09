@@ -258,6 +258,14 @@ Route::middleware(['auth', 'statut'])->group(function () {
         Route::post('/sauvegarde/vider-corbeille', 
             [SauvegardeController::class, 'viderCorbeille'])
             ->name('sauvegarde.vider-corbeille');
+        
+        Route::post('/sauvegarde/import/analyser', 
+            [SauvegardeController::class, 'analyserImport'])
+            ->name('sauvegarde.import.analyser');
+        
+        Route::post('/sauvegarde/import/executer', 
+            [SauvegardeController::class, 'executerImport'])
+            ->name('sauvegarde.import.executer');
 
     });
 

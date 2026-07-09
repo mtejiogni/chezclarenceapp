@@ -193,6 +193,9 @@
     <button class="sv-tab" onclick="changerOnglet('corbeille', this)">
         <i class="fa-solid fa-trash-can"></i> Corbeille & Restauration
     </button>
+    <button class="sv-tab" onclick="changerOnglet('import', this)">
+        <i class="fa-solid fa-upload"></i> Importer
+    </button>
 </div>
 
 {{-- ══════════════════════════════════════════════════════════
@@ -353,6 +356,93 @@
                 <i class="fa-solid fa-bomb"></i> Vider définitivement la corbeille
             </button>
         </form>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════
+     ONGLET IMPORTER
+══════════════════════════════════════════════════════════ --}}
+<div id="pane-import" class="sv-pane">
+
+    {{-- Étape 1 : dépôt du fichier --}}
+    <div class="card" id="carteUploadImport">
+        <div class="card-header">
+            <div class="card-header-title"><i class="fa-solid fa-file-zipper" style="color:var(--cc-orange);"></i> 1. Déposer une archive de sauvegarde</div>
+        </div>
+        <div class="card-body">
+            <div id="dropzone" onclick="document.getElementById('inputFichierImport').click()"
+                 ondrop="gererDepot(event)" ondragover="event.preventDefault()"
+                 style="border:2px dashed var(--cc-border);border-radius:12px;padding:40px 20px;
+                        text-align:center;cursor:pointer;transition:all .18s;">
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size:32px;color:#333;display:block;margin-bottom:10px;"></i>
+                <p style="font-size:13px;color:#888;margin-bottom:4px;">Cliquez ou déposez un fichier .zip ici</p>
+                <p style="font-size:11px;color:#444;">Archive générée par ce module (SQL + éventuellement images), 50 Mo max</p>
+                <p id="nomFichierChoisi" style="font-size:12px;color:var(--cc-orange2);margin-top:10px;font-weight:600;"></p>
+            </div>
+            <input type="file" id="inputFichierImport" accept=".zip" style="display:none;" onchange="fichierChoisi(this.files)">
+
+            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px;" id="btnAnalyser" onclick="analyserFichier()" disabled>
+                <i class="fa-solid fa-magnifying-glass"></i> Analyser le fichier
+            </button>
+        </div>
+    </div>
+
+    {{-- Étape 2 : aperçu (rempli dynamiquement) --}}
+    <div class="card" id="carteApercuImport" style="display:none;">
+        <div class="card-header">
+            <div class="card-header-title"><i class="fa-solid fa-eye" style="color:#60a5fa;"></i> 2. Aperçu avant import</div>
+        </div>
+        <div class="card-body">
+            <div style="overflow-x:auto;margin-bottom:18px;">
+                <table class="data-table" id="tableApercuImport">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="chkToutApercu" checked onclick="toutSelectionnerApercu(this)"></th>
+                            <th>Table</th>
+                            <th>Lignes trouvées</th>
+                            <th>Nouveaux</th>
+                            <th>Doublons</th>
+                            <th>Images</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div id="avertissementsImport"></div>
+
+            <label class="field-label" style="margin-top:10px;">Mode d'import</label>
+            <div class="choix-grid" style="margin-bottom:14px;">
+                <button type="button" class="choix-btn active" data-mode="fusionner_ignorer" onclick="choisirModeImport('fusionner_ignorer', this)">
+                    <i class="fa-solid fa-plus"></i> Ajouter les nouveaux
+                </button>
+                <button type="button" class="choix-btn" data-mode="fusionner_ecraser" onclick="choisirModeImport('fusionner_ecraser', this)">
+                    <i class="fa-solid fa-rotate"></i> Ajouter + écraser doublons
+                </button>
+                <button type="button" class="choix-btn" data-mode="remplacer" onclick="choisirModeImport('remplacer', this)">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Tout remplacer
+                </button>
+            </div>
+            <p style="font-size:11px;color:#444;margin-bottom:14px;" id="descriptionMode">
+                Insère uniquement les lignes qui n'existent pas encore (identifiées par leur clé primaire). Les données existantes ne sont jamais modifiées.
+            </p>
+
+            <div id="zoneMotDePasseImport" style="display:none;margin-bottom:14px;">
+                <label class="field-label" style="color:#f87171;">Votre mot de passe (obligatoire pour ce mode destructif)</label>
+                <input type="password" id="motDePasseImport" class="field-input" placeholder="••••••••">
+            </div>
+
+            <button class="btn btn-danger" style="width:100%;justify-content:center;" onclick="confirmerImport()">
+                <i class="fa-solid fa-check"></i> Confirmer et lancer l'import
+            </button>
+        </div>
+    </div>
+
+    {{-- Étape 3 : résultat --}}
+    <div class="card" id="carteResultatImport" style="display:none;">
+        <div class="card-header">
+            <div class="card-header-title"><i class="fa-solid fa-circle-check" style="color:#22c55e;"></i> 3. Résultat de l'import</div>
+        </div>
+        <div class="card-body" id="contenuResultatImport"></div>
     </div>
 </div>
 
@@ -599,6 +689,208 @@ async function executerUnitaire(type, id) {
     });
 
     if (data.success) chargerCorbeille(1);
+}
+
+// ══════════════════════════════════════════════════════════════
+// IMPORT
+// ══════════════════════════════════════════════════════════════
+let fichierImportChoisi = null;
+let tokenImportCourant  = null;
+let apercuImportCourant = null;
+let modeImportCourant   = 'fusionner_ignorer';
+
+function gererDepot(e) {
+    e.preventDefault();
+    if (e.dataTransfer.files.length) fichierChoisi(e.dataTransfer.files);
+}
+
+function fichierChoisi(fichiers) {
+    if (!fichiers.length) return;
+    fichierImportChoisi = fichiers[0];
+    document.getElementById('nomFichierChoisi').textContent = fichierImportChoisi.name;
+    document.getElementById('btnAnalyser').disabled = false;
+}
+
+async function analyserFichier() {
+    if (!fichierImportChoisi) return;
+
+    const btn = document.getElementById('btnAnalyser');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyse en cours...';
+
+    const formData = new FormData();
+    formData.append('fichier', fichierImportChoisi);
+
+    try {
+        const res  = await fetch('{{ route("admin.sauvegarde.import.analyser") }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, 'Accept': 'application/json' },
+            body: formData,
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            Swal.fire({ icon: 'error', title: 'Analyse impossible', text: data.message, background: '#141414', color: '#e5e5e5', confirmButtonColor: '#ea580c' });
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Analyser le fichier';
+            return;
+        }
+
+        tokenImportCourant  = data.token;
+        apercuImportCourant = data.apercu;
+        afficherApercuImport(data.apercu, data.tables_inconnues);
+
+        document.getElementById('carteApercuImport').style.display = 'block';
+        document.getElementById('carteResultatImport').style.display = 'none';
+        document.getElementById('carteApercuImport').scrollIntoView({ behavior: 'smooth' });
+
+    } catch (e) {
+        console.error(e);
+        Swal.fire({ icon: 'error', title: 'Erreur réseau', background: '#141414', color: '#e5e5e5', confirmButtonColor: '#ea580c' });
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Analyser le fichier';
+}
+
+function afficherApercuImport(apercu, tablesInconnues) {
+    const tbody = document.querySelector('#tableApercuImport tbody');
+    tbody.innerHTML = Object.entries(apercu).map(([cle, t]) => `
+        <tr>
+            <td><input type="checkbox" class="chk-table-import" value="${cle}" checked></td>
+            <td style="color:#e5e5e5;font-weight:600;">${t.label}</td>
+            <td>${t.total_fichier}</td>
+            <td style="color:#22c55e;font-weight:700;">${t.nouveaux}</td>
+            <td style="color:#eab308;">${t.doublons}</td>
+            <td>${t.images_attendues > 0 ? `${t.images_presentes} / ${t.images_attendues}` : '—'}</td>
+        </tr>
+    `).join('');
+
+    const avert = document.getElementById('avertissementsImport');
+    let html = '';
+    if (tablesInconnues && tablesInconnues.length) {
+        html += `<div style="padding:10px 14px;border-radius:9px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);color:#eab308;font-size:11.5px;margin-bottom:10px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> Tables non reconnues, ignorées : ${tablesInconnues.join(', ')}
+        </div>`;
+    }
+    const imagesManquantes = Object.values(apercu).some(t => t.images_attendues > t.images_presentes);
+    if (imagesManquantes) {
+        html += `<div style="padding:10px 14px;border-radius:9px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.18);color:#f87171;font-size:11.5px;">
+            <i class="fa-solid fa-circle-info"></i> Certaines images référencées en base sont absentes de l'archive — les lignes seront quand même importées, sans leur image.
+        </div>`;
+    }
+    avert.innerHTML = html;
+}
+
+function toutSelectionnerApercu(source) {
+    document.querySelectorAll('.chk-table-import').forEach(c => c.checked = source.checked);
+}
+
+const DESCRIPTIONS_MODE = {
+    'fusionner_ignorer': "Insère uniquement les lignes qui n'existent pas encore (identifiées par leur clé primaire). Les données existantes ne sont jamais modifiées.",
+    'fusionner_ecraser':  "Insère les nouvelles lignes ET remplace le contenu des lignes déjà existantes par celui de l'archive.",
+    'remplacer':          "⚠ Vide entièrement chaque table sélectionnée avant réinsertion. Toute donnée actuelle non présente dans l'archive sera définitivement perdue.",
+};
+
+function choisirModeImport(mode, btn) {
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    modeImportCourant = mode;
+    document.getElementById('descriptionMode').textContent = DESCRIPTIONS_MODE[mode];
+    document.getElementById('zoneMotDePasseImport').style.display = mode === 'remplacer' ? 'block' : 'none';
+}
+
+async function confirmerImport() {
+    const tablesChoisies = [...document.querySelectorAll('.chk-table-import:checked')].map(c => c.value);
+
+    if (tablesChoisies.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'Aucune table sélectionnée', background: '#141414', color: '#e5e5e5', confirmButtonColor: '#ea580c' });
+        return;
+    }
+
+    const motDePasse = document.getElementById('motDePasseImport').value;
+    if (modeImportCourant === 'remplacer' && !motDePasse) {
+        Swal.fire({ icon: 'warning', title: 'Mot de passe requis', text: 'Le mode "Tout remplacer" exige votre mot de passe.', background: '#141414', color: '#e5e5e5', confirmButtonColor: '#ea580c' });
+        return;
+    }
+
+    const confirmation = await Swal.fire({
+        title: modeImportCourant === 'remplacer' ? 'Remplacer définitivement ces tables ?' : 'Confirmer l\'import ?',
+        html: modeImportCourant === 'remplacer'
+            ? '<div style="color:#f87171;font-size:13px;">Les données actuelles non présentes dans l\'archive seront perdues.</div>'
+            : '',
+        icon: 'warning', iconColor: modeImportCourant === 'remplacer' ? '#ef4444' : '#eab308',
+        background: '#141414', color: '#e5e5e5',
+        confirmButtonColor: modeImportCourant === 'remplacer' ? '#ef4444' : '#ea580c',
+        confirmButtonText: 'Lancer l\'import', showCancelButton: true, cancelButtonText: 'Annuler', cancelButtonColor: '#1f1f1f',
+    });
+
+    if (!confirmation.isConfirmed) return;
+
+    document.getElementById('loadingOverlay').classList.add('show');
+
+    try {
+        const res  = await fetch('{{ route("admin.sauvegarde.import.executer") }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                token: tokenImportCourant,
+                mode: modeImportCourant,
+                tables: tablesChoisies,
+                password: motDePasse,
+            }),
+        });
+        const data = await res.json();
+
+        afficherResultatImport(data);
+
+    } catch (e) {
+        console.error(e);
+        Swal.fire({ icon: 'error', title: 'Erreur réseau pendant l\'import', background: '#141414', color: '#e5e5e5', confirmButtonColor: '#ea580c' });
+    }
+
+    document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+function afficherResultatImport(data) {
+    const carte = document.getElementById('carteResultatImport');
+    const zone  = document.getElementById('contenuResultatImport');
+
+    const lignes = Object.values(data.resultats || {}).map(r => `
+        <div class="info-row" style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1a1a1a;font-size:12.5px;">
+            <span style="color:#ccc;">${r.label}</span>
+            <span style="color:#888;">${r.avant} → <strong style="color:#22c55e;">${r.apres}</strong> lignes
+                ${r.images_copiees > 0 ? `· <i class="fa-solid fa-image" style="color:#60a5fa;"></i> ${r.images_copiees} image(s)` : ''}
+            </span>
+        </div>
+    `).join('');
+
+    const echecsHtml = (data.echecs && data.echecs.length)
+        ? `<div style="margin-top:14px;padding:10px 14px;border-radius:9px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171;font-size:12px;">
+               <i class="fa-solid fa-circle-exclamation"></i> Échec sur : ${data.echecs.join(', ')}
+           </div>`
+        : '';
+
+    zone.innerHTML = `
+        <div style="padding:12px 14px;border-radius:9px;background:${data.success ? 'rgba(34,197,94,.08)' : 'rgba(234,179,8,.08)'};
+                    border:1px solid ${data.success ? 'rgba(34,197,94,.2)' : 'rgba(234,179,8,.2)'};
+                    color:${data.success ? '#22c55e' : '#eab308'};font-size:13px;margin-bottom:14px;">
+            <i class="fa-solid ${data.success ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i> ${data.message}
+        </div>
+        ${lignes}
+        ${echecsHtml}
+    `;
+
+    carte.style.display = 'block';
+    carte.scrollIntoView({ behavior: 'smooth' });
+
+    // Réinitialisation pour un éventuel nouvel import
+    document.getElementById('carteApercuImport').style.display = 'none';
+    document.getElementById('nomFichierChoisi').textContent = '';
+    document.getElementById('inputFichierImport').value = '';
+    document.getElementById('btnAnalyser').disabled = true;
+    fichierImportChoisi = null;
+    tokenImportCourant  = null;
 }
 </script>
 @endpush
