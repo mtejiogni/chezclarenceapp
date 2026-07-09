@@ -124,13 +124,22 @@ class CaisseController extends Controller
 
     // =========================================================
     // RAPPORT PDF — Rapport de caisse (rapport Z) pour une date
-    // GET /caisse/rapport?date=AAAA-MM-JJ
+    // GET /caisse/rapport/{date?}  (segment de route, ex: /caisse/rapport/2026-07-01)
     // =========================================================
 
-    public function rapport(Request $request)
+    public function rapport(Request $request, ?string $date = null)
     {
-        $date = $request->filled('date')
-            ? Carbon::parse($request->date)
+        // [CORRIGÉ] la route est déclarée '/rapport/{date?}' — un
+        // paramètre de ROUTE (segment d'URL), pas une chaîne de
+        // requête. $request->filled('date') / $request->date ne
+        // regardent que le query string et le corps POST, jamais les
+        // segments de route : la condition était donc toujours fausse
+        // et retombait systématiquement sur Carbon::today(), quelle
+        // que soit la date réellement présente dans l'URL. La
+        // injection du paramètre nommé $date (identique au nom du
+        // segment {date?}) le résout proprement.
+        $date = $date
+            ? Carbon::parse($date)
             : Carbon::today();
 
         $commandesJour = Commande::whereDate('datecommande', $date)
