@@ -963,11 +963,11 @@ class SauvegardeController extends Controller
             $car = $sql[$i];
             $courant .= $car;
 
-            // [CORRECTIF] un commentaire SQL en ligne ('-- ...') peut
+            // Un commentaire SQL en ligne ('-- ...') peut
             // légitimement contenir une apostrophe française non
             // échappée (ex. "Ne l'exécuter que..."). Sans cette
-            // détection, une telle apostrophe était interprétée comme
-            // un début de chaîne SQL, ce qui corrompait le parsing de
+            // détection, une telle apostrophe peu être interprétée comme
+            // un début de chaîne SQL, qui peut corrompre le parsing de
             // tout le reste du fichier en aval.
             if (!$dansChaine && !$dansCommentaire && $car === '-' && ($i + 1) < $longueur && $sql[$i + 1] === '-') {
                 $dansCommentaire = true;

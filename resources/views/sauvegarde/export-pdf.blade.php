@@ -112,6 +112,7 @@
 
     <div class="footer">
         Export généré automatiquement — {{ $parametres->nom_restaurant ?? config('app.name', 'RESTAURANT') }}
+        (<b><i>Attention: Limite de données par table fixé à 500 pour garder un PDF exploitable.</i></b>)
     </div>
 
 </body>
