@@ -36,9 +36,9 @@
            focus:border-blue-500 transition duration-150;
   }
 
-  .card {
+  /* .card {
     @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-5;
-  }
+  } */
 
   
   .badge {

@@ -16,15 +16,34 @@ use App\Http\Controllers\Web\ParametreController;
 use App\Http\Controllers\Web\CategorieController;
 use App\Http\Controllers\Web\ClientCommandeController;
 use App\Http\Controllers\Web\SauvegardeController;
+use App\Http\Controllers\Web\SiteController;
 use Illuminate\Support\Facades\Route;
 
 
 // =========================================================
-// PAGE PUBLIQUE
+// PAGE PUBLIQUE - SITE WEB
 // =========================================================
-Route::get('/', function () {
-    return view('welcome');
-})->name('front');
+// Route::get('/', function () {
+//     return view('welcome');
+// })->name('front');
+
+// Page d'accueil publique (Single Page Application)
+Route::get('/', 
+    [SiteController::class, 'index'])
+    ->name('site.index');
+ 
+// Alias pratiques : /accueil et /site redirigent vers la page d'accueil
+Route::redirect('/accueil', '/');
+Route::redirect('/site', '/');
+
+// Ancres directes vers les sections de la SPA (facultatif mais pratique
+// pour partager des liens : monsite.com/menu → monsite.com/#menu)
+Route::redirect('/menu', '/#menu');
+Route::redirect('/services', '/#services');
+Route::redirect('/contact', '/#contact');
+Route::redirect('/a-propos', '/#apropos');
+Route::redirect('/localisation', '/#localisation');
+ 
 
 
 
