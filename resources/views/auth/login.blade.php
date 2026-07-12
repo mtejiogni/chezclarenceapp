@@ -112,13 +112,15 @@
                 </form>
             </div>
 
+            <!--
             <div class="login-register-link">
                 <p>
                     Pas encore de compte ?
                     <a href="{{ route('register') }}">Créer un compte client</a>
                 </p>
             </div>
-
+            -->
+            
         </div>
     </div>
 </div>
