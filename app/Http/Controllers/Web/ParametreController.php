@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Parametre;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -56,7 +58,19 @@ class ParametreController extends Controller
     {
         $parametre = $this->getParametre();
 
-        return view('parametre.index', compact('parametre'));
+        // [MODIFIÉ] diagnostic déplacé ici plutôt que calculé en
+        // inline dans la vue — logique métier, pas de présentation.
+        $lienOk      = $this->lienStockageFonctionnel();
+        $lienExiste  = file_exists(public_path('storage'));
+        $dossierFige = $lienExiste && !$lienOk;
+        $hotPresent  = file_exists(public_path('hot'));
+
+        return view('parametre.index', compact(
+            'parametre',
+            'lienOk',
+            'dossierFige',
+            'hotPresent'
+        ));
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -149,8 +163,8 @@ class ParametreController extends Controller
     // NETTOYER LE FICHIER VITE "hot"
     // POST /parametres/nettoyer-hot
     //
-    // Ce fichier est créé automatiquement par `npm run dev`
-    // en développement. S'il se retrouve déployé par erreur en
+    // [POURQUOI] ce fichier est créé automatiquement par `npm run
+    // dev` en développement. S'il se retrouve déployé par erreur en
     // production (git push, FTP, résidu d'un ancien déploiement...),
     // Laravel charge alors TOUJOURS les assets depuis le serveur Vite
     // de développement (ex. http://[::1]:5173) au lieu des fichiers
@@ -186,7 +200,7 @@ class ParametreController extends Controller
     // RECRÉER LE LIEN DE STOCKAGE (public/storage)
     // POST /parametres/lien-stockage
     //
-    // Sans ce lien symbolique, toutes les images uploadées
+    // [POURQUOI] sans ce lien symbolique, toutes les images uploadées
     // (logo, photos de plats/catégories) affichent une image cassée
     // — fréquent après un déploiement sur un nouveau serveur, où le
     // lien n'a jamais été créé.
@@ -194,23 +208,106 @@ class ParametreController extends Controller
 
     public function recreerLienStockage()
     {
-        try {
-            Artisan::call('storage:link');
+        $lien = public_path('storage');
 
-            $ok = file_exists(public_path('storage'));
+        try {
+            $dejaFonctionnel = $this->lienStockageFonctionnel(utiliserCache: false);
+
+            if (!$dejaFonctionnel && file_exists($lien)) {
+                // Présent mais non fonctionnel : dossier figé (copie
+                // manuelle ayant suivi le lien/la jonction au moment de
+                // la copie) ou lien cassé. Dans les deux cas il faut le
+                // supprimer, sinon storage:link se contente de dire
+                // "le lien existe déjà" sans rien corriger.
+                if (is_link($lien)) {
+                    unlink($lien);
+                } elseif (is_dir($lien)) {
+                    File::deleteDirectory($lien);
+                } else {
+                    @unlink($lien);
+                }
+            }
+
+            if (!$dejaFonctionnel) {
+                Artisan::call('storage:link');
+            }
+
+            Cache::forget('parametre_lien_stockage_ok');
+            $ok = $this->lienStockageFonctionnel(utiliserCache: false);
+
+            if ($ok) {
+                return redirect()
+                    ->route('admin.parametres.index')
+                    ->with('success', $dejaFonctionnel
+                        ? 'Lien de stockage déjà fonctionnel — rien à corriger.'
+                        : 'Ancien dossier figé nettoyé si nécessaire, et lien de stockage recréé avec succès.'
+                    );
+            }
+
+            // [OS] message contextualisé — la cause probable diffère
+            // sensiblement entre Windows et Linux/macOS.
+            $conseil = match (PHP_OS_FAMILY) {
+                'Windows' => 'Sur Windows, la création de la jonction (mklink) nécessite généralement des droits administrateur. Essayez d\'exécuter "php artisan storage:link" depuis un terminal lancé en tant qu\'administrateur.',
+                default   => 'Vérifiez que le processus PHP/serveur web a le droit de créer des liens symboliques dans public/, et que cette fonctionnalité n\'est pas désactivée par votre hébergeur (fréquent sur certains mutualisés Linux).',
+            };
 
             return redirect()
                 ->route('admin.parametres.index')
-                ->with($ok ? 'success' : 'error', $ok
-                    ? 'Lien de stockage créé/vérifié avec succès.'
-                    : 'La commande s\'est exécutée mais le lien semble toujours absent — vérifiez les permissions du dossier public/ sur le serveur.'
-                );
+                ->with('error', "Le lien n'a pas pu être établi (environnement détecté : " . PHP_OS_FAMILY . "). {$conseil}");
 
         } catch (\Exception $e) {
             return redirect()
                 ->route('admin.parametres.index')
                 ->with('error', 'Erreur lors de la création du lien : ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Vérifie si le lien/la jonction public/storage → storage/app/public
+     * fonctionne réellement, indépendamment de l'OS et du mécanisme
+     * technique sous-jacent (symlink Unix, jonction NTFS Windows...).
+     *
+     * [OS] Écrit un fichier marqueur dans le vrai dossier de stockage
+     * puis vérifie sa visibilité via le chemin public — plus fiable
+     * que is_link(), notamment sur Windows où is_link() peut ne pas
+     * reconnaître une jonction créée par 'mklink /J'.
+     *
+     * Résultat mis en cache 5 minutes pour éviter d'écrire/lire un
+     * fichier à chaque affichage de la page (coût I/O), sauf appel
+     * explicite avec utiliserCache: false (après une action corrective,
+     * où l'état frais est indispensable).
+     */
+    private function lienStockageFonctionnel(bool $utiliserCache = true): bool
+    {
+        $verification = function (): bool {
+            if (!is_dir(storage_path('app/public'))) {
+                return false;
+            }
+
+            $marqueur     = '.test-lien-' . uniqid() . '.tmp';
+            $cheminReel   = storage_path('app/public/' . $marqueur);
+            $cheminPublic = public_path('storage/' . $marqueur);
+
+            try {
+                file_put_contents($cheminReel, 'ok');
+
+                return file_exists($cheminPublic) && file_get_contents($cheminPublic) === 'ok';
+
+            } catch (\Exception $e) {
+                return false;
+
+            } finally {
+                if (file_exists($cheminReel)) {
+                    @unlink($cheminReel);
+                }
+            }
+        };
+
+        if (!$utiliserCache) {
+            return $verification();
+        }
+
+        return Cache::remember('parametre_lien_stockage_ok', 300, $verification);
     }
 
     // ══════════════════════════════════════════════════════════════

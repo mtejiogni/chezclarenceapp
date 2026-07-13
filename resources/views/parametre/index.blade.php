@@ -899,6 +899,10 @@
                         <span class="sys-row-val">{{ phpversion() }}</span>
                     </div>
                     <div class="sys-row">
+                        <span class="sys-row-label">Système d'exploitation serveur</span>
+                        <span class="sys-row-val">{{ PHP_OS_FAMILY }} <span style="color:#333;">({{ php_uname('s') }})</span></span>
+                    </div>
+                    <div class="sys-row">
                         <span class="sys-row-label">Base de données</span>
                         <span class="sys-row-val">
                             MySQL {{ DB::select('SELECT VERSION() as v')[0]->v ?? '—' }}
@@ -924,14 +928,18 @@
                     </div>
                     <div class="sys-row">
                         <span class="sys-row-label">Stockage (lien symbolique)</span>
-                        @php $lienOk = file_exists(public_path('storage')); @endphp
-                        <span class="sys-row-val" style="color:{{ $lienOk ? '#22c55e' : '#f87171' }};">
-                            {{ $lienOk ? '✓ Fonctionnel' : '✗ Absent — exécuter php artisan storage:link' }}
+                        <span class="sys-row-val" style="color:{{ $lienOk ? '#22c55e' : ($dossierFige ? '#eab308' : '#f87171') }};">
+                            @if($lienOk)
+                                ✓ Fonctionnel
+                            @elseif($dossierFige)
+                                ⚠ Dossier figé détecté (pas un vrai lien) — les fichiers uploadés en ligne restent invisibles
+                            @else
+                                ✗ Absent — exécuter php artisan storage:link
+                            @endif
                         </span>
                     </div>
                     <div class="sys-row">
                         <span class="sys-row-label">Fichier Vite "hot"</span>
-                        @php $hotPresent = file_exists(public_path('hot')); @endphp
                         <span class="sys-row-val" style="color:{{ $hotPresent ? '#f87171' : '#22c55e' }};">
                             {{ $hotPresent ? '⚠ Présent — assets de dev chargés en prod, à nettoyer !' : '✓ Absent (normal en production)' }}
                         </span>
@@ -1022,13 +1030,16 @@
                             <div>
                                 <div style="font-size:13px;font-weight:600;color:#e5e5e5;">
                                     Recréer le lien de stockage
-                                    @if(!$lienOk)
+                                    @if($dossierFige)
+                                    <span style="font-size:9px;font-weight:700;color:#eab308;background:rgba(234,179,8,.12);
+                                                 padding:2px 7px;border-radius:20px;margin-left:6px;">DOSSIER FIGÉ</span>
+                                    @elseif(!$lienOk)
                                     <span style="font-size:9px;font-weight:700;color:#f87171;background:rgba(239,68,68,.12);
                                                  padding:2px 7px;border-radius:20px;margin-left:6px;">ABSENT</span>
                                     @endif
                                 </div>
                                 <div style="font-size:11px;color:#444;margin-top:1px;">
-                                    Répare l'affichage des images (logo, photos de plats/catégories) si elles apparaissent cassées.
+                                    Répare l'affichage des images (logo, photos de plats/catégories) si elles apparaissent cassées — y compris si un dossier figé a remplacé le vrai lien (copie manuelle du dossier public/).
                                 </div>
                             </div>
                             <form method="POST" action="{{ route('admin.parametres.lien-stockage') }}">
