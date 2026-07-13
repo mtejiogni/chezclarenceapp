@@ -328,13 +328,20 @@
             </a>
             @endif
 
-            @if(in_array(auth()->user()->role, ['Administrateur']))
+
+
+
+
+
+
+            @if(in_array(auth()->user()->role, ['Administrateur','Caissier']))
             <div class="sb-section" style="padding:12px 8px 4px; font-size:9px; color:#2a2a2a;
                          letter-spacing:2px; text-transform:uppercase; font-weight:600;">
                 Administration
             </div>
+            @endif
 
-            
+            @if(in_array(auth()->user()->role, ['Administrateur']))
             <a href="{{ route('admin.statistiques') }}"
                class="sb-link {{ request()->routeIs('admin.statistiques') ? 'active' : '' }}">
                 <i class="fa-solid fa-chart-line"></i>
@@ -366,7 +373,17 @@
             </a>
             @endif
 
+
+            @if(in_array(auth()->user()->role, ['Administrateur','Caissier']))
+            <a href="{{ route('admin.sauvegarde.index') }}"
+               class="sb-link {{ request()->routeIs('admin.sauvegarde.index') ? 'active' : '' }}">
+                <i class="fa-solid fa-database"></i>
+                <span class="sb-label">Sauvegarde & <br />Restauration</span>
+            </a>
+            @endif
         </nav>
+
+
 
         {{-- Profil bas --}}
         <div style="padding:12px; border-top:1px solid #1a1a1a; flex-shrink:0;">

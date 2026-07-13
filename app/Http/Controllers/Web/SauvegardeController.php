@@ -17,7 +17,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use ZipArchive;
 
 // ══════════════════════════════════════════════════════════════
-// MODULE SAUVEGARDE ET RESTAURATION (Administrateur uniquement)
+// MODULE SAUVEGARDE ET RESTAURATION (Administrateur et Caissier)
 //
 // ── PRINCIPE DE SÉCURITÉ CENTRAL ─────────────────────────────
 // Ce contrôleur peut supprimer des données de façon IRRÉVERSIBLE.
