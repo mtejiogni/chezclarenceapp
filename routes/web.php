@@ -228,6 +228,18 @@ Route::middleware(['auth', 'statut'])->group(function () {
         Route::post('/parametres/vider-cache', 
             [ParametreController::class, 'viderCache'])
          ->name('parametres.vider-cache');
+        
+        Route::post('/parametres/nettoyer-hot',
+            [ParametreController::class, 'nettoyerFichierHot'])
+            ->name('parametres.nettoyer-hot');
+
+        Route::post('/parametres/lien-stockage',
+            [ParametreController::class, 'recreerLienStockage'])
+            ->name('parametres.lien-stockage');
+
+        Route::post('/parametres/optimiser',
+            [ParametreController::class, 'optimiserProduction'])
+            ->name('parametres.optimiser');
 
 
 

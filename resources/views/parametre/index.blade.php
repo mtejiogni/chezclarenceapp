@@ -930,6 +930,13 @@
                         </span>
                     </div>
                     <div class="sys-row">
+                        <span class="sys-row-label">Fichier Vite "hot"</span>
+                        @php $hotPresent = file_exists(public_path('hot')); @endphp
+                        <span class="sys-row-val" style="color:{{ $hotPresent ? '#f87171' : '#22c55e' }};">
+                            {{ $hotPresent ? '⚠ Présent — assets de dev chargés en prod, à nettoyer !' : '✓ Absent (normal en production)' }}
+                        </span>
+                    </div>
+                    <div class="sys-row">
                         <span class="sys-row-label">Paramètres créés le</span>
                         <span class="sys-row-val">{{ $parametre->created_at->format('d/m/Y à H:i') }}</span>
                     </div>
@@ -947,6 +954,15 @@
                     <div class="card-header-title">Actions de maintenance</div>
                 </div>
                 <div class="card-body">
+                    @php $estProduction = app()->environment('production'); @endphp
+                    @unless($estProduction)
+                    <div style="margin-bottom:14px;padding:10px 14px;border-radius:9px;font-size:11.5px;
+                                background:rgba(234,179,8,.06);border:1px solid rgba(234,179,8,.2);color:#eab308;">
+                        <i class="fa-solid fa-flask" style="margin-right:6px;"></i>
+                        Environnement actuel : <strong>{{ app()->environment() }}</strong> (pas production).
+                        « Nettoyer le fichier hot » et « Optimiser » sont pensés pour la mise en ligne — les utiliser ici peut perturber votre travail en cours (voir avertissements ci-dessous).
+                    </div>
+                    @endunless
                     <div style="display:flex;flex-direction:column;gap:10px;">
                         <div style="display:flex;align-items:center;justify-content:space-between;
                                     padding:12px 14px;border-radius:9px;
@@ -967,6 +983,89 @@
                                 </button>
                             </form>
                         </div>
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;
+                                    padding:12px 14px;border-radius:9px;
+                                    background:var(--cc-dark2);border:1px solid #1a1a1a;">
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:#e5e5e5;">
+                                    Nettoyer le fichier Vite "hot"
+                                    @if($hotPresent)
+                                    <span style="font-size:9px;font-weight:700;color:#f87171;background:rgba(239,68,68,.12);
+                                                 padding:2px 7px;border-radius:20px;margin-left:6px;">DÉTECTÉ</span>
+                                    @endif
+                                </div>
+                                <div style="font-size:11px;color:#444;margin-top:1px;">
+                                    @if($estProduction)
+                                    Corrige les erreurs CORS en production causées par un résidu de <code>npm run dev</code>.
+                                    @else
+                                    <span style="color:#eab308;">⚠ En local, ce fichier est probablement utilisé activement par <code>npm run dev</code> — le supprimer coupe votre rechargement à chaud.</span>
+                                    @endif
+                                </div>
+                            </div>
+                            <form method="POST" action="{{ route('admin.parametres.nettoyer-hot') }}"
+                                  data-necessite-confirmation="{{ $estProduction ? '0' : '1' }}"
+                                  data-message-confirmation="Vous êtes en environnement de développement. Si npm run dev tourne, supprimer ce fichier va interrompre votre rechargement à chaud en cours. Continuer quand même ?"
+                                  onsubmit="return gererSubmitMaintenance(event)">
+                                @csrf
+                                <button type="submit" class="btn {{ $hotPresent ? '' : 'btn-ghost' }} btn-sm"
+                                        style="{{ $hotPresent ? 'background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#f87171;' : '' }}">
+                                    <i class="fa-solid fa-broom"></i>
+                                    Nettoyer
+                                </button>
+                            </form>
+                        </div>
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;
+                                    padding:12px 14px;border-radius:9px;
+                                    background:var(--cc-dark2);border:1px solid #1a1a1a;">
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:#e5e5e5;">
+                                    Recréer le lien de stockage
+                                    @if(!$lienOk)
+                                    <span style="font-size:9px;font-weight:700;color:#f87171;background:rgba(239,68,68,.12);
+                                                 padding:2px 7px;border-radius:20px;margin-left:6px;">ABSENT</span>
+                                    @endif
+                                </div>
+                                <div style="font-size:11px;color:#444;margin-top:1px;">
+                                    Répare l'affichage des images (logo, photos de plats/catégories) si elles apparaissent cassées.
+                                </div>
+                            </div>
+                            <form method="POST" action="{{ route('admin.parametres.lien-stockage') }}">
+                                @csrf
+                                <button type="submit" class="btn btn-ghost btn-sm">
+                                    <i class="fa-solid fa-link"></i>
+                                    Recréer
+                                </button>
+                            </form>
+                        </div>
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;
+                                    padding:12px 14px;border-radius:9px;
+                                    background:var(--cc-dark2);border:1px solid #1a1a1a;">
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:#e5e5e5;">
+                                    Optimiser pour la production
+                                </div>
+                                <div style="font-size:11px;color:#444;margin-top:1px;">
+                                    Met en cache la configuration, les routes et les vues pour de meilleures performances.
+                                    <span style="color:#eab308;">Videz d'abord le cache après tout changement du fichier .env.</span>
+                                    @unless($estProduction)
+                                    <br><span style="color:#eab308;">⚠ En local, vos futures modifications de .env ou de routes/web.php resteront sans effet tant que vous n'aurez pas revidé le cache.</span>
+                                    @endunless
+                                </div>
+                            </div>
+                            <form method="POST" action="{{ route('admin.parametres.optimiser') }}"
+                                  data-necessite-confirmation="{{ $estProduction ? '0' : '1' }}"
+                                  data-message-confirmation="Vous êtes en environnement de développement. Mettre en cache la config, les routes et les vues masquera vos changements en cours (.env, nouvelles routes) tant que le cache ne sera pas revidé. Continuer quand même ?"
+                                  onsubmit="return gererSubmitMaintenance(event)">
+                                @csrf
+                                <button type="submit" class="btn btn-ghost btn-sm">
+                                    <i class="fa-solid fa-gauge-high"></i>
+                                    Optimiser
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -980,6 +1079,37 @@
 
 @push('scripts')
 <script>
+// ════════════════════════════════════════════════════════════
+// CONFIRMATION RENFORCÉE HORS PRODUCTION
+// Utilisée par les actions de maintenance qui peuvent perturber
+// un environnement de développement actif (fichier hot, cache
+// d'optimisation) — jamais affichée en production, où ces
+// actions sont sans danger particulier.
+// ════════════════════════════════════════════════════════════
+
+function gererSubmitMaintenance(event) {
+    const form = event.target;
+
+    if (form.dataset.necessiteConfirmation !== '1') {
+        return true;
+    }
+
+    event.preventDefault();
+
+    Swal.fire({
+        title: 'Action pensée pour la production',
+        html: `<div style="color:#ccc;font-size:13px;text-align:left;">${form.dataset.messageConfirmation}</div>`,
+        icon: 'warning', iconColor: '#eab308',
+        background: '#141414', color: '#e5e5e5',
+        confirmButtonColor: '#eab308', confirmButtonText: 'Continuer quand même',
+        showCancelButton: true, cancelButtonText: 'Annuler', cancelButtonColor: '#1f1f1f',
+    }).then(r => {
+        if (r.isConfirmed) form.submit();
+    });
+
+    return false;
+}
+
 // ════════════════════════════════════════════════════════════
 // NAVIGATION PAR ONGLETS
 // ════════════════════════════════════════════════════════════

@@ -146,6 +146,103 @@ class ParametreController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    // NETTOYER LE FICHIER VITE "hot"
+    // POST /parametres/nettoyer-hot
+    //
+    // Ce fichier est créé automatiquement par `npm run dev`
+    // en développement. S'il se retrouve déployé par erreur en
+    // production (git push, FTP, résidu d'un ancien déploiement...),
+    // Laravel charge alors TOUJOURS les assets depuis le serveur Vite
+    // de développement (ex. http://[::1]:5173) au lieu des fichiers
+    // compilés dans public/build — ce qui casse le site avec des
+    // erreurs CORS pour tous les visiteurs, sur toutes les pages.
+    // ══════════════════════════════════════════════════════════════
+
+    public function nettoyerFichierHot()
+    {
+        $chemin = public_path('hot');
+
+        if (!file_exists($chemin)) {
+            return redirect()
+                ->route('admin.parametres.index')
+                ->with('success', 'Aucun fichier "hot" détecté — rien à nettoyer, tout est normal.');
+        }
+
+        try {
+            unlink($chemin);
+
+            return redirect()
+                ->route('admin.parametres.index')
+                ->with('success', 'Fichier Vite "hot" supprimé. Le site utilisera désormais les assets compilés (public/build).');
+
+        } catch (\Exception $e) {
+            return redirect()
+                ->route('admin.parametres.index')
+                ->with('error', 'Impossible de supprimer le fichier "hot" (permissions ?) : ' . $e->getMessage());
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // RECRÉER LE LIEN DE STOCKAGE (public/storage)
+    // POST /parametres/lien-stockage
+    //
+    // Sans ce lien symbolique, toutes les images uploadées
+    // (logo, photos de plats/catégories) affichent une image cassée
+    // — fréquent après un déploiement sur un nouveau serveur, où le
+    // lien n'a jamais été créé.
+    // ══════════════════════════════════════════════════════════════
+
+    public function recreerLienStockage()
+    {
+        try {
+            Artisan::call('storage:link');
+
+            $ok = file_exists(public_path('storage'));
+
+            return redirect()
+                ->route('admin.parametres.index')
+                ->with($ok ? 'success' : 'error', $ok
+                    ? 'Lien de stockage créé/vérifié avec succès.'
+                    : 'La commande s\'est exécutée mais le lien semble toujours absent — vérifiez les permissions du dossier public/ sur le serveur.'
+                );
+
+        } catch (\Exception $e) {
+            return redirect()
+                ->route('admin.parametres.index')
+                ->with('error', 'Erreur lors de la création du lien : ' . $e->getMessage());
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // OPTIMISER POUR LA PRODUCTION (config + routes + vues en cache)
+    // POST /parametres/optimiser
+    // ══════════════════════════════════════════════════════════════
+
+    public function optimiserProduction()
+    {
+        try {
+            Artisan::call('config:cache');
+            Artisan::call('route:cache');
+            Artisan::call('view:cache');
+
+            return redirect()
+                ->route('admin.parametres.index')
+                ->with('success', 'Application optimisée : configuration, routes et vues mises en cache pour de meilleures performances.');
+
+        } catch (\Exception $e) {
+            // Message actionnable si une route à closure est un jour
+            // réintroduite (route:cache l'interdit systématiquement).
+            $message = str_contains($e->getMessage(), 'Closure')
+                ? 'Erreur : une route utilise une closure comme gestionnaire, ce que route:cache interdit. Remplacez-la par un contrôleur, ou effectuez "Vider le cache" pour repartir sur une base propre.'
+                : 'Erreur lors de l\'optimisation : ' . $e->getMessage();
+
+            return redirect()
+                ->route('admin.parametres.index')
+                ->with('error', $message);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // MÉTHODES PRIVÉES : mise à jour par section
     // ══════════════════════════════════════════════════════════════
 
